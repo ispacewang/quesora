@@ -168,7 +168,6 @@ const generateExportContent = (format) => {
 
 .wrong-item:last-child {
   border-bottom: none;
-  margin-bottom: 0;
 }
 
 .wrong-question-title {
