@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
     "build:vue": "cd frontend && npm run build",
     "rebuild": "electron-rebuild -f",
     "build:win": "npm run build:vue && electron-builder --win --x64"
@@ -44,6 +45,7 @@
     "async-validator": "^4.2.5",
     "axios": "^1.7.2",
     "chart.js": "^4.4.3",
+    "cross-env": "^7.0.3",
     "dayjs": "^1.11.12",
     "electron": "^31.2.1",
     "electron-builder": "^24.13.3",

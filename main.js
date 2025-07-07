@@ -19,13 +19,17 @@ function createWindow () {
     }
   });
   win.setMenu(null);
-  
-  // 【重要】: 确保在加载 URL 前，服务器已经启动
-  // 这里我们加载的是本地文件，但前端的 JS 会访问 localhost:3002
-  win.loadFile(path.join(__dirname, 'frontend/dist/index.html'));
 
-  // 方便调试，可以打开开发者工具
-  // win.webContents.openDevTools(); 
+  // 判断开发环境，优先用环境变量，其次用端口检测
+  const isDev = process.env.NODE_ENV === 'development' || process.argv.some(arg => arg.includes('--dev'));
+
+  if (isDev) {
+    win.loadURL('http://localhost:5173');
+    win.webContents.openDevTools(); // 开发环境自动打开调试工具
+  } else {
+    win.loadFile(path.join(__dirname, 'frontend/dist/index.html'));
+    // win.webContents.openDevTools(); // 如需生产环境也打开可取消注释
+  }
 }
 
 // 修改应用的启动流程

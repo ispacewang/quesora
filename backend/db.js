@@ -46,6 +46,7 @@ console.log('Database path:', dbPath); // 打印数据库路径，方便调试
 
 // 4. 使用这个绝对、可写的路径来创建数据库实例
 const db = new Database(dbPath);
+db.pragma('foreign_keys = ON');
 
 // 初始化表的代码保持不变
 db.exec(`

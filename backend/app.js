@@ -5,8 +5,6 @@ const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 const db = require("./db"); // 确保这是引入的 better-sqlite3 实例
-const { cut: jiebaCut } = require("@node-rs/jieba"); // 【新增】引入分词库
-
 // --- 辅助函数区 ---
 
 /**
@@ -159,20 +157,15 @@ function createServer() {
   });
   /**
 
-     * 【新增】生成试卷接口
-
-     * 根据题库名称，随机生成包含100道题的试卷（不含简答题）
-
+     * 【修改】生成试卷接口
+     * 单选40道，多选30道，判断30道
      */
-
   app.get("/generate-paper", (req, res) => {
     const { bankName } = req.query;
-    // 1. 参数校验
     if (!bankName) {
       return res.status(400).json({ error: "缺少题库名称 (bankName) 参数" });
     }
     try {
-      // 2. 根据题库名称查找题库ID
       const bankRow = db
         .prepare("SELECT id FROM banks WHERE name = ?")
         .get(bankName);
@@ -180,22 +173,19 @@ function createServer() {
         return res.status(404).json({ error: "题库不存在" });
       }
       const bankId = bankRow.id;
-      // 3. 从数据库中随机抽取100道非简答题的题目
-      // 使用 ORDER BY RANDOM() LIMIT 100 是 SQLite 中高效的随机抽样方法
-      const stmt = db.prepare(`
-                SELECT id, question, options, type, meta, answer, explanation
-                FROM questions
-                WHERE bank_id = ? AND type IN ('单选题', '多选题', '判断题')
-                ORDER BY RANDOM()
-                LIMIT 100
-            `);
-
-      const questions = stmt.all(bankId);
-      // 如果题库中符合条件的题目不足100道，将返回所有符合条件的题目
+      // 分别抽取
+      const single = db.prepare(`SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '单选题' ORDER BY RANDOM() LIMIT 40`).all(bankId);
+      const multi = db.prepare(`SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '多选题' ORDER BY RANDOM() LIMIT 30`).all(bankId);
+      const judge = db.prepare(`SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '判断题' ORDER BY RANDOM() LIMIT 30`).all(bankId);
+      const questions = [...single, ...multi, ...judge];
       if (questions.length === 0) {
         return res.status(404).json({ error: "该题库中没有符合条件的题目" });
       }
-      // 4. 格式化题目数据，将JSON字符串解析为对象
+      // 打乱顺序
+      for (let i = questions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [questions[i], questions[j]] = [questions[j], questions[i]];
+      }
       const formattedQuestions = questions.map((q) => ({
         id: q.id,
         question: q.question,
@@ -203,7 +193,6 @@ function createServer() {
         type: q.type,
         meta: q.meta ? JSON.parse(q.meta) : {},
       }));
-      // 5. 返回生成的试卷
       res.json(formattedQuestions);
     } catch (err) {
       console.error(`为题库 '${bankName}' 生成试卷时出错:`, err);
@@ -281,6 +270,26 @@ function createServer() {
         }
       }
       res.json({ correct, explanation: q.explanation, answer: q.answer });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 删除题库
+  app.delete("/bank", (req, res) => {
+    const { bankName } = req.query;
+    if (!bankName) {
+      return res.status(400).json({ error: "缺少 bankName 参数" });
+    }
+    try {
+      const bankRow = db.prepare("SELECT id FROM banks WHERE name = ?").get(bankName);
+      if (!bankRow) {
+        return res.status(404).json({ error: "题库不存在" });
+      }
+      const bankId = bankRow.id;
+      db.prepare("DELETE FROM questions WHERE bank_id = ?").run(bankId);
+      db.prepare("DELETE FROM banks WHERE id = ?").run(bankId);
+      res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

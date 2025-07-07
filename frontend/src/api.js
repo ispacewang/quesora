@@ -26,3 +26,12 @@ export function submitAnswer(id, userAnswer, bankName) {
 export function patternsP(bankName) {
   return axios.get('/patterns', {  params: { bankName }  });
 }
+
+
+export function generatePaper(bankName, count) {
+  return axios.get('/generate-paper', { params: { bankName, count } });
+}
+
+export function deleteBank(bankName) {
+  return axios.delete('/bank', { params: { bankName } });
+}
