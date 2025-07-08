@@ -212,16 +212,6 @@ const loadFromApi = async () => {
 const submit = async () => {
 
   // 在这里添加日志打印
-
-  console.log('--- 开始提交 ---');
-
-  console.log('当前题库 (currentBank):', currentBank.value);
-
-  console.log('错题库ID (MISTAKE_BOOK_ID):', MISTAKE_BOOK_ID);
-
-  console.log('是否为错题库模式 (isMistakeMode):', isMistakeMode.value);
-
-  console.log('-----------------');
   if ((isMultiChoice.value ? userAnswer.value.length === 0 : !userAnswer.value) || submitting.value) return;
   submitting.value = true;
 
@@ -285,7 +275,8 @@ const submitToApi = async () => {
       ...question.value,
       correctAnswer: formatAnswer(answer),
       userAnswer: formatAnswer(userAnswer.value),
-      explanation: exp
+      explanation: exp,
+      options: question.value.options, // 保留选项信息
     };
 
     if (correct) {

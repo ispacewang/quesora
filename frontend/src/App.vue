@@ -28,6 +28,7 @@ if (result.isCorrect) {
   if (result.questionData && !wrongAnswers.value.some(item => item.questionData.idx === result.questionData.idx)) {
     // unshift 的是 result，它本身就包含了 isCorrect 和 questionData
     wrongAnswers.value.unshift(result);
+    console.log('错题本更新:', wrongAnswers.value);
   }
 }
 
@@ -144,7 +145,7 @@ onMounted(() => {
       <!-- 新增：功能介绍弹窗 -->
       <el-dialog v-model="showIntroDialog" title="功能介绍" width="500px" :close-on-click-modal="false">
         <div style="font-size:17px;line-height:1.8;padding:8px 0;">
-          <b>AI答题小助手</b> 是一款支持题库上传、选择、考试、批量判题和错题本的桌面应用。<br><br>
+          <b>答题小助手</b> 是一款支持题库上传、选择、考试、批量判题和错题本的桌面应用。<br><br>
           <ul style="padding-left:20px;">
             <li>支持 <b>Excel/CSV</b> 题库一键上传，自动分类。（请按照固定格式表头的excel）</li>
             <li>支持刷题模式和考试模式切换</li>
@@ -170,11 +171,9 @@ onMounted(() => {
           <Quiz v-else ref="quizRef" @answer-submitted="handleAnswerSubmitted" @bank-changed="handleBankChanged" />
         </div>
 
-        <div class="right-panel" v-if="!isExamMode">
+        <div class="right-panel">
           <!-- 考试模式下不显示内容 -->
-          <template>
-            <WrongAnswerCard :wrong-answers="wrongAnswers" />
-          </template>
+            <WrongAnswerCard :wrong-answers="wrongAnswers" v-if="!isExamMode" />
         </div>
       </div>
       <!-- 其它内容... -->
@@ -209,6 +208,7 @@ onMounted(() => {
 .right-panel {
   width: 400px;
   flex-shrink: 0;
+  height: calc(100vh - 48px);
 }
 
 /* 6. 为分析器组件添加容器样式 */

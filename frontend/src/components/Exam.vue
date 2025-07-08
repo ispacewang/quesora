@@ -49,7 +49,7 @@
                 <span class="option-label">{{ String.fromCharCode(65+i) }}.</span> {{ opt }}
               </div>
             </div>
-            <el-radio-group v-else v-model="answers[currentIdx]" class="option-group column-options">
+            <el-radio-group v-else v-model="answers[currentIdx]" class="option-group row-options">
               <el-radio v-for="(opt,i) in questions[currentIdx].options" :key="i" :label="String.fromCharCode(65+i)" class="danxuan column-option-item">
                 <span class="option-label">{{ String.fromCharCode(65+i) }}.</span> {{ opt }}
               </el-radio>
@@ -353,7 +353,8 @@ onUnmounted(() => { if (timer.value) clearInterval(timer.value); });
 }
 .row-options {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 18px;
   margin-bottom: 18px;
 }
@@ -402,7 +403,10 @@ onUnmounted(() => { if (timer.value) clearInterval(timer.value); });
   transition: all 0.2s;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 30px;
   font-size: 16px;
+  flex-direction: row;
 }
 .column-option-item:hover {
   border-color: #409EFF;
