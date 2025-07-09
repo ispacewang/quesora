@@ -15,8 +15,8 @@ export function getBanks() {
   return axios.get('/banks');
 }
 
-export function getQuestion(bankName) {
-  return axios.get('/question', { params: { bankName } });
+export function getQuestion(bankName, order) {
+  return axios.get('/question', { params: { bankName, order } });
 }
 
 export function submitAnswer(id, userAnswer, bankName) {

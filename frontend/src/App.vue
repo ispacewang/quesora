@@ -171,9 +171,9 @@ onMounted(() => {
           <Quiz v-else ref="quizRef" @answer-submitted="handleAnswerSubmitted" @bank-changed="handleBankChanged" />
         </div>
 
-        <div class="right-panel">
+        <div class="right-panel" v-if="!isExamMode">
           <!-- 考试模式下不显示内容 -->
-            <WrongAnswerCard :wrong-answers="wrongAnswers" v-if="!isExamMode" />
+          <WrongAnswerCard :wrong-answers="wrongAnswers" />
         </div>
       </div>
       <!-- 其它内容... -->

@@ -174,9 +174,21 @@ function createServer() {
       }
       const bankId = bankRow.id;
       // 分别抽取
-      const single = db.prepare(`SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '单选题' ORDER BY RANDOM() LIMIT 40`).all(bankId);
-      const multi = db.prepare(`SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '多选题' ORDER BY RANDOM() LIMIT 30`).all(bankId);
-      const judge = db.prepare(`SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '判断题' ORDER BY RANDOM() LIMIT 30`).all(bankId);
+      const single = db
+        .prepare(
+          `SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '单选题' ORDER BY RANDOM() LIMIT 40`
+        )
+        .all(bankId);
+      const multi = db
+        .prepare(
+          `SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '多选题' ORDER BY RANDOM() LIMIT 30`
+        )
+        .all(bankId);
+      const judge = db
+        .prepare(
+          `SELECT id, question, options, type, meta, answer, explanation FROM questions WHERE bank_id = ? AND type = '判断题' ORDER BY RANDOM() LIMIT 30`
+        )
+        .all(bankId);
       const questions = [...single, ...multi, ...judge];
       if (questions.length === 0) {
         return res.status(404).json({ error: "该题库中没有符合条件的题目" });
@@ -200,26 +212,68 @@ function createServer() {
     }
   });
 
-  // 获取随机题目
+  // app.get("/question", ...) 路由修改后的完整代码
+
+  // 在你的路由文件顶部，定义一个全局变量来存储进度
+
+  let currentProgress = {
+    bankName: null,
+    isSequential: null,
+    lastIndex: null, // 用于顺序模式
+  };
   app.get("/question", (req, res) => {
-    const bankName = req.query.bankName;
+    // 1. 从查询参数中获取 order 和 currentId
+    const { bankName, order = true } = req.query;
+
     if (!bankName) return res.status(400).json({ error: "缺少题库名" });
+
     try {
       const bankRow = db
         .prepare("SELECT id FROM banks WHERE name=?")
         .get(bankName);
       if (!bankRow) return res.status(400).json({ error: "题库不存在" });
       const bankId = bankRow.id;
-      const questions = db
-        .prepare("SELECT * FROM questions WHERE bank_id=?")
-        .all(bankId);
-      if (!questions || questions.length === 0) {
-        return res.status(400).json({ error: "题库为空" });
+
+      let q; // 用来存放最终的题目
+      // 2. 根据 order 参数决定查询逻辑
+      if (order) {
+        const allQuestions = db
+          .prepare("SELECT * FROM questions WHERE bank_id = ? ORDER BY id ASC")
+          .all(bankId);
+        if (!allQuestions || allQuestions.length === 0) {
+          return res.status(404).json({ error: "该题库为空" });
+        }
+        const lastIndex = currentProgress.lastIndex;
+
+        let nextIndex =
+          lastIndex === null || lastIndex === undefined ? 0 : lastIndex + 1;
+
+        if (nextIndex >= allQuestions.length) {
+          nextIndex = 0; // 循环到开头
+        }
+
+        q = allQuestions[nextIndex];
+
+        currentProgress.lastIndex = nextIndex; // 更新进度
+      } else {
+        // --- 随机刷题逻辑 (保持不变) ---
+        const questions = db
+          .prepare("SELECT * FROM questions WHERE bank_id=?")
+          .all(bankId);
+        if (!questions || questions.length === 0) {
+          return res.status(400).json({ error: "题库为空" });
+        }
+        const idx = Math.floor(Math.random() * questions.length);
+        q = questions[idx];
       }
-      const idx = Math.floor(Math.random() * questions.length);
-      const q = questions[idx];
+
+      // 3. 统一处理返回结果
+      if (!q) {
+        return res.status(400).json({ error: "题库为空或未找到题目" });
+      }
+
       res.json({
-        id: q.id, // 返回题目ID，方便后续操作
+        id: q.id,
         question: q.question,
         options: JSON.parse(q.options),
         type: q.type,
@@ -282,7 +336,9 @@ function createServer() {
       return res.status(400).json({ error: "缺少 bankName 参数" });
     }
     try {
-      const bankRow = db.prepare("SELECT id FROM banks WHERE name = ?").get(bankName);
+      const bankRow = db
+        .prepare("SELECT id FROM banks WHERE name = ?")
+        .get(bankName);
       if (!bankRow) {
         return res.status(404).json({ error: "题库不存在" });
       }
