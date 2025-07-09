@@ -86,7 +86,28 @@ function createServer() {
 
   // 上传题库文件，写入数据库
   app.post("/upload", upload.single("file"), (req, res) => {
-    const baseName = req.body.bankName || "未命名题库";
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    const rawBuffer = Buffer.from(req.file.originalname, 'latin1');
+    const decodedName = rawBuffer.toString('utf8');
+    const originalFilename = decodedName; // 【重要】我们后续使用这个解码后的名字
+    const bankName = path.basename(originalFilename, path.extname(originalFilename));
+
+    // 如果文件名处理后为空（例如文件名是 ".txt"），则拒绝
+    if (!bankName) {
+      return res.status(400).json({ error: "无效的文件名，无法生成题库名" });
+    }
+    // 3. 【健壮性增强】检查题库是否已存在
+    const existingBank = db
+      .prepare("SELECT id FROM banks WHERE name = ?")
+      .get(bankName);
+    if (existingBank) {
+      // 使用 409 Conflict 状态码，表示资源冲突
+      return res.status(409).json({
+        error: `题库 "${bankName}" 已存在。请使用其他文件名或先删除现有题库。`,
+      });
+    }
     const now = new Date();
     const timestamp = `${now.getFullYear()}${(now.getMonth() + 1)
       .toString()
@@ -97,11 +118,7 @@ function createServer() {
       .getSeconds()
       .toString()
       .padStart(2, "0")}`;
-    const uniqueBankName = `${baseName}_${timestamp}`;
-
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+    const uniqueBankName = `${bankName}`;
 
     try {
       console.time("parseFile");
