@@ -255,7 +255,7 @@ function createServer() {
       // 2. 根据 order 参数决定查询逻辑
       if (order) {
         const allQuestions = db
-          .prepare("SELECT * FROM questions WHERE bank_id = ? ORDER BY id ASC")
+          .prepare("SELECT * FROM questions WHERE bank_id = ? AND type != '简答题' ORDER BY id ASC")
           .all(bankId);
         if (!allQuestions || allQuestions.length === 0) {
           return res.status(404).json({ error: "该题库为空" });
@@ -275,7 +275,7 @@ function createServer() {
       } else {
         // --- 随机刷题逻辑 (保持不变) ---
         const questions = db
-          .prepare("SELECT * FROM questions WHERE bank_id=?")
+          .prepare("SELECT * FROM questions WHERE bank_id=? AND type != '简答题'")
           .all(bankId);
         if (!questions || questions.length === 0) {
           return res.status(400).json({ error: "题库为空" });

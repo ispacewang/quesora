@@ -308,7 +308,8 @@ const submit = async () => {
   if (isMistakeMode.value) {
     submitInMistakeMode();
   } else {
-    await submitToApi();
+    console.log("questionMod.value:", questionMod.value);
+    await submitToApi(questionMod.value);
   }
 
   submitting.value = false;
@@ -382,6 +383,7 @@ const submitToApi = async () => {
 
       ElMessage({ message: "回答正确！", type: "success", duration: 1000 });
       setTimeout(() => {
+        console.log("questionMod.value:", questionMod.value);
         next();
       }, 1000);
     } else {
@@ -427,7 +429,7 @@ const formatAnswer = (ans) => {
 const next = () => {
   // 【改】在切换下一题前重置提交状态，确保按钮可用
   submitting.value = false;
-  loadQuestion();
+  loadQuestion(questionMod.value);
 };
 const resetQuestion = () => {
   loadQuestion();

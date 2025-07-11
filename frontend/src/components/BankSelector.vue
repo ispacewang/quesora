@@ -19,6 +19,13 @@
           class="mistake-badge"
           type="warning"
         />
+        <el-button
+          type="danger"
+          size="small"
+          @click.stop="onDeleteWrong(mistakeBank.id)"
+        >
+          清空错题库
+        </el-button>
       </el-card>
 
       <!-- 远程题库卡片 -->
@@ -32,7 +39,15 @@
         @mouseenter="hoverBank = bank"
         @mouseleave="hoverBank = ''"
       >
-        <div style="display: flex; flex-direction: column; align-items: center; position:relative; min-height: 40px;">
+        <div
+          style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            min-height: 40px;
+          "
+        >
           <el-icon style="font-size: 32px"><Collection /></el-icon>
           <transition name="fade">
             <el-button
@@ -41,10 +56,23 @@
               type="danger"
               circle
               size="small"
-              style="position:absolute;top:-20px;right:-20px;z-index:2;opacity:0.95;"
+              style="
+                position: absolute;
+                top: -20px;
+                right: -20px;
+                z-index: 2;
+                opacity: 0.95;
+              "
               @click.stop="onDeleteBank(bank)"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24">
+                <path
+                  d="M18 6L6 18M6 6l12 12"
+                  stroke="#fff"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
             </el-button>
           </transition>
         </div>
@@ -80,8 +108,6 @@
           </div>
         </el-upload>
       </el-dialog>
-
-
     </div>
   </div>
 </template>
@@ -176,6 +202,15 @@ const onDeleteBank = async (bankName) => {
   } catch (e) {
     ElMessage.error("删除失败");
   }
+};
+
+const onDeleteWrong = async () => {
+  mistakeBank.count = 0; // 重置错题数量
+  mistakeBank.hasMistakes = false; // 重置错题状态
+  localStorage.removeItem(MISTAKE_BOOK_ID);
+  ElMessage.success("已清空错题库");
+  // 这里可以添加清空错题库的逻辑，比如调用API或清除本地存储
+  fetchAllBanks(); // 清空后刷新题库列表
 };
 
 // --- Lifecycle ---
@@ -285,13 +320,16 @@ defineExpose({
 }
 
 /* 渐变动画 */
-.fade-enter-active, .fade-leave-active {
+.fade-enter-active,
+.fade-leave-active {
   transition: opacity 0.2s;
 }
-.fade-enter-from, .fade-leave-to {
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
 }
-.fade-enter-to, .fade-leave-from {
+.fade-enter-to,
+.fade-leave-from {
   opacity: 1;
 }
 </style>

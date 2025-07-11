@@ -1,7 +1,7 @@
 <template>
   <el-card class="exam-card">
     <div class="exam-body">
-      <!-- 左侧：答题卡（100个小方格，红/绿/灰边框） -->
+      <!-- 左侧：答题卡 -->
       <div class="left-panel">
         <div class="card-grid">
           <div
@@ -11,16 +11,19 @@
             :class="{
               current: idx === currentIdx,
               answered: ans !== null,
+              marked: markedSet.has(idx), // 新增：标记样式
               correct: submitted && correctSet.has(idx),
               wrong: submitted && wrongSet.has(idx),
             }"
             @click="goTo(idx)"
           >
             {{ idx + 1 }}
+            <!-- 新增：标记小图标 -->
+            <span v-if="markedSet.has(idx)" class="mark-indicator">🚩</span>
           </div>
         </div>
       </div>
-      <!-- 中间：题目内容和答题区，参考 Quiz.vue 风格 -->
+      <!-- 中间：题目内容和答题区 -->
       <div class="main-panel">
         <div class="exam-info">
           <b>题库：</b>{{ examInfo.bank }}
@@ -44,10 +47,22 @@
         </div>
         <div v-if="examStarted && questions.length">
           <div class="question-panel">
+            <!-- START: 修改题目头部，增加标记按钮 -->
             <div class="question-title">
-              <span class="q-idx">第{{ currentIdx + 1 }}题</span>
-              <span class="q-type">（{{ questions[currentIdx].type }}）</span>
+              <div>
+                <span class="q-idx">第{{ currentIdx + 1 }}题</span>
+                <span class="q-type">（{{ questions[currentIdx].type }}）</span>
+              </div>
+              <el-button
+                :type="markedSet.has(currentIdx) ? 'warning' : 'default'"
+                plain
+                size="small"
+                @click="toggleMark"
+              >
+                {{ markedSet.has(currentIdx) ? '取消标记' : '标记此题' }}
+              </el-button>
             </div>
+            <!-- END: 修改题目头部 -->
             <div style="margin-bottom: 16px">
               <el-tag type="primary" style="margin-right: 8px">{{
                 questions[currentIdx].type
@@ -189,7 +204,7 @@
                             ? wrongDetails[idx].answer.includes(
                                 String.fromCharCode(65 + i)
                               )
-                            : false
+                            : false,
                         }"
                       >
                         {{ String.fromCharCode(65 + i) }}. {{ opt }}
@@ -205,12 +220,12 @@
                   <div style="margin-bottom: 2px">
                     <span style="color: #67c23a">正确答案：</span>
                     <span style="color: #67c23a; font-weight: bold">{{
-                      wrongDetails[idx] ? wrongDetails[idx].answer : "未知"
+                      wrongDetails[idx] ? wrongDetails[idx].answer : '未知'
                     }}</span>
                   </div>
                   <div
                     v-if="wrongDetails[idx] && wrongDetails[idx].explanation"
-                    style="color: #409eff; margin-bottom: 8px; text-align: left;"
+                    style="color: #409eff; margin-bottom: 8px; text-align: left"
                   >
                     解析：{{ wrongDetails[idx].explanation }}
                   </div>
@@ -235,10 +250,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch } from "vue";
-import { ElMessageBox, ElMessage } from "element-plus";
-import * as api from "../api";
-import axios from "axios";
+import { ref, computed, onUnmounted, watch } from 'vue';
+import { ElMessageBox, ElMessage } from 'element-plus';
+import * as api from '../api';
+import axios from 'axios';
 
 const props = defineProps({
   examInfo: { type: Object, required: true },
@@ -246,6 +261,7 @@ const props = defineProps({
 
 const questions = ref([]);
 const answers = ref([]); // 每题的答案，未答为null
+const markedSet = ref(new Set()); // 新增：用于存储标记的题目索引
 const currentIdx = ref(0);
 const timer = ref(null);
 const timeLeft = ref(0);
@@ -259,18 +275,19 @@ const wrongDetails = ref({});
 const timeStr = computed(() => {
   const m = Math.floor(timeLeft.value / 60)
     .toString()
-    .padStart(2, "0");
-  const s = (timeLeft.value % 60).toString().padStart(2, "0");
+    .padStart(2, '0');
+  const s = (timeLeft.value % 60).toString().padStart(2, '0');
   return `${m}:${s}`;
 });
 
 // 生成试卷
 const generatePaper = async () => {
-  const res = await axios.get("/generate-paper", {
+  const res = await axios.get('/generate-paper', {
     params: { bankName: props.examInfo.bank },
   });
   questions.value = res.data;
   answers.value = Array(questions.value.length).fill(null);
+  markedSet.value = new Set(); // 新增：重置标记集合
   currentIdx.value = 0;
   timeLeft.value = (props.examInfo.duration || 60) * 60;
   examStarted.value = true;
@@ -309,6 +326,15 @@ const next = () => {
   if (currentIdx.value < questions.value.length - 1) currentIdx.value++;
 };
 
+// 新增：标记/取消标记题目
+const toggleMark = () => {
+  if (markedSet.value.has(currentIdx.value)) {
+    markedSet.value.delete(currentIdx.value);
+  } else {
+    markedSet.value.add(currentIdx.value);
+  }
+};
+
 // 多选题选项切换
 function toggleMultiOption(i) {
   const label = String.fromCharCode(65 + i);
@@ -327,18 +353,18 @@ function toggleMultiOption(i) {
 }
 
 // 退出考试
-const emit = defineEmits(["exit-exam"]);
+const emit = defineEmits(['exit-exam']);
 const onExitExam = () => {
   ElMessageBox.confirm(
-    "确定要退出考试吗？退出后本次答题将不会保存。",
-    "退出确认",
+    '确定要退出考试吗？退出后本次答题将不会保存。',
+    '退出确认',
     {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
     }
   ).then(() => {
-    emit("exit-exam");
+    emit('exit-exam');
   });
 };
 
@@ -347,25 +373,25 @@ const onSubmitExam = async () => {
   if (submitted.value) return;
   // 检查是否有未答题
   const unanswered = answers.value.findIndex((ans, idx) => {
-    if (questions.value[idx].type === "多选题")
+    if (questions.value[idx].type === '多选题')
       return !Array.isArray(ans) || ans.length === 0;
-    return ans == null || ans === "";
+    return ans == null || ans === '';
   });
   if (unanswered !== -1) {
     ElMessage.warning(`第${unanswered + 1}题未作答，请全部作答后再交卷！`);
     return;
   }
-  ElMessageBox.confirm("确定要交卷吗？交卷后将立即判分。", "交卷确认", {
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
-    type: "warning",
+  ElMessageBox.confirm('确定要交卷吗？交卷后将立即判分。', '交卷确认', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
   }).then(async () => {
     await submitExam();
   });
 };
 
 function formatUserAnswer(ans, q) {
-  if (q.type === "多选题" && Array.isArray(ans)) return ans.join(", ");
+  if (q.type === '多选题' && Array.isArray(ans)) return ans.join(', ');
   return ans;
 }
 
@@ -444,6 +470,7 @@ onUnmounted(() => {
   cursor: pointer;
   border: 1.5px solid #dcdfe6;
   transition: all 0.2s;
+  position: relative; /* 新增：为角标定位 */
 }
 .card-item.current {
   border: 2px solid #409eff;
@@ -454,6 +481,19 @@ onUnmounted(() => {
   background: #e1f3d8;
   border-color: #67c23a;
 }
+
+/* START: 新增标记样式 */
+.card-item.marked {
+  border-color: #e6a23c;
+}
+.mark-indicator {
+  position: absolute;
+  top: -8px;
+  right: -5px;
+  font-size: 14px;
+}
+/* END: 新增标记样式 */
+
 .card-item.correct {
   border: 2px solid #67c23a;
 }
@@ -475,7 +515,11 @@ onUnmounted(() => {
   padding: 24px 32px 18px 32px;
   margin-bottom: 18px;
 }
+/* 修改：使用flex布局对齐标题和按钮 */
 .question-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 18px;
   font-weight: bold;
   margin-bottom: 10px;
