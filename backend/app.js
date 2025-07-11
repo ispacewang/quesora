@@ -211,10 +211,10 @@ function createServer() {
         return res.status(404).json({ error: "该题库中没有符合条件的题目" });
       }
       // 打乱顺序
-      for (let i = questions.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [questions[i], questions[j]] = [questions[j], questions[i]];
-      }
+      // for (let i = questions.length - 1; i > 0; i--) {
+      //   const j = Math.floor(Math.random() * (i + 1));
+      //   [questions[i], questions[j]] = [questions[j], questions[i]];
+      // }
       const formattedQuestions = questions.map((q) => ({
         id: q.id,
         question: q.question,

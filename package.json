@@ -1,6 +1,6 @@
 {
   "name": "my-desktop-app",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "My Awesome Desktop App",
   "main": "main.js",
   "scripts": {
@@ -24,7 +24,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "frontend/public/favicon.ico"
+      "icon": "frontend/public/favicon1.ico"
     },
     "nsis": {
       "oneClick": false,

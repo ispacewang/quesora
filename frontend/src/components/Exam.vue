@@ -2,25 +2,39 @@
   <el-card class="exam-card">
     <div class="exam-body">
       <!-- 左侧：答题卡 -->
+
       <div class="left-panel">
         <div class="card-grid">
-          <div
-            v-for="(ans, idx) in answers"
-            :key="idx"
-            class="card-item"
-            :class="{
-              current: idx === currentIdx,
-              answered: ans !== null,
-              marked: markedSet.has(idx), // 新增：标记样式
-              correct: submitted && correctSet.has(idx),
-              wrong: submitted && wrongSet.has(idx),
-            }"
-            @click="goTo(idx)"
-          >
-            {{ idx + 1 }}
-            <!-- 新增：标记小图标 -->
-            <span v-if="markedSet.has(idx)" class="mark-indicator">🚩</span>
-          </div>
+          <!-- 关键改动：将 :key 移到 <template> 标签上 -->
+
+          <!-- 每个循环项（无论是标题还是卡片）都属于一个由 idx 标识的片段 -->
+
+          <template v-for="(ans, idx) in answers" :key="idx">
+            <!-- 在第1题前显示“单选题”标题 -->
+            <div v-if="idx === 0" class="card-title">单选题 (1-40)</div>
+            <!-- 在第41题前显示“多选题”标题 -->
+            <div v-if="idx === 40" class="card-title">多选题 (41-70)</div>
+
+            <!-- 在第71题前显示“判断题”标题 -->
+            <div v-if="idx === 70" class="card-title">
+              判断题 (71-{{ answers.length }})
+            </div>
+            <!-- 题号卡片不再需要独立的 key -->
+            <div
+              class="card-item"
+              :class="{
+                current: idx === currentIdx,
+                answered: ans !== null,
+                marked: markedSet.has(idx),
+                correct: submitted && correctSet.has(idx),
+                wrong: submitted && wrongSet.has(idx),
+              }"
+              @click="goTo(idx)"
+            >
+              {{ idx + 1 }}
+              <span v-if="markedSet.has(idx)" class="mark-indicator">🚩</span>
+            </div>
+          </template>
         </div>
       </div>
       <!-- 中间：题目内容和答题区 -->
@@ -59,7 +73,7 @@
                 size="small"
                 @click="toggleMark"
               >
-                {{ markedSet.has(currentIdx) ? '取消标记' : '标记此题' }}
+                {{ markedSet.has(currentIdx) ? "取消标记" : "标记此题" }}
               </el-button>
             </div>
             <!-- END: 修改题目头部 -->
@@ -220,7 +234,7 @@
                   <div style="margin-bottom: 2px">
                     <span style="color: #67c23a">正确答案：</span>
                     <span style="color: #67c23a; font-weight: bold">{{
-                      wrongDetails[idx] ? wrongDetails[idx].answer : '未知'
+                      wrongDetails[idx] ? wrongDetails[idx].answer : "未知"
                     }}</span>
                   </div>
                   <div
@@ -250,10 +264,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch } from 'vue';
-import { ElMessageBox, ElMessage } from 'element-plus';
-import * as api from '../api';
-import axios from 'axios';
+import { ref, computed, onUnmounted, watch } from "vue";
+import { ElMessageBox, ElMessage } from "element-plus";
+import * as api from "../api";
+import axios from "axios";
 
 const props = defineProps({
   examInfo: { type: Object, required: true },
@@ -275,14 +289,14 @@ const wrongDetails = ref({});
 const timeStr = computed(() => {
   const m = Math.floor(timeLeft.value / 60)
     .toString()
-    .padStart(2, '0');
-  const s = (timeLeft.value % 60).toString().padStart(2, '0');
+    .padStart(2, "0");
+  const s = (timeLeft.value % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
 });
 
 // 生成试卷
 const generatePaper = async () => {
-  const res = await axios.get('/generate-paper', {
+  const res = await axios.get("/generate-paper", {
     params: { bankName: props.examInfo.bank },
   });
   questions.value = res.data;
@@ -353,18 +367,18 @@ function toggleMultiOption(i) {
 }
 
 // 退出考试
-const emit = defineEmits(['exit-exam']);
+const emit = defineEmits(["exit-exam"]);
 const onExitExam = () => {
   ElMessageBox.confirm(
-    '确定要退出考试吗？退出后本次答题将不会保存。',
-    '退出确认',
+    "确定要退出考试吗？退出后本次答题将不会保存。",
+    "退出确认",
     {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
     }
   ).then(() => {
-    emit('exit-exam');
+    emit("exit-exam");
   });
 };
 
@@ -373,25 +387,25 @@ const onSubmitExam = async () => {
   if (submitted.value) return;
   // 检查是否有未答题
   const unanswered = answers.value.findIndex((ans, idx) => {
-    if (questions.value[idx].type === '多选题')
+    if (questions.value[idx].type === "多选题")
       return !Array.isArray(ans) || ans.length === 0;
-    return ans == null || ans === '';
+    return ans == null || ans === "";
   });
   if (unanswered !== -1) {
     ElMessage.warning(`第${unanswered + 1}题未作答，请全部作答后再交卷！`);
     return;
   }
-  ElMessageBox.confirm('确定要交卷吗？交卷后将立即判分。', '交卷确认', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning',
+  ElMessageBox.confirm("确定要交卷吗？交卷后将立即判分。", "交卷确认", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning",
   }).then(async () => {
     await submitExam();
   });
 };
 
 function formatUserAnswer(ans, q) {
-  if (q.type === '多选题' && Array.isArray(ans)) return ans.join(', ');
+  if (q.type === "多选题" && Array.isArray(ans)) return ans.join(", ");
   return ans;
 }
 
@@ -632,5 +646,26 @@ ul {
 .wrong-options .correct-answer {
   color: #67c23a;
   font-weight: bold;
+}
+
+/* --- 新增的标题样式 --- */
+
+.card-title {
+  /* 关键：让标题元素横跨所有列 */
+  grid-column: 1 / -1;
+  font-weight: bold;
+  color: #333;
+  margin-top: 15px;
+  margin-bottom: 5px;
+  padding-left: 5px;
+  font-size: 14px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+/* 第一个标题不需要上边距 */
+
+.card-grid .card-title:first-of-type {
+  margin-top: 0;
 }
 </style>
