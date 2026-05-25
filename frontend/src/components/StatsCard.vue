@@ -1,117 +1,254 @@
-<!-- components/StatsCard.vue -->
 <template>
-    <el-card class="stats-card">
-        <template #header>
-            <div class="card-header">
-                <span>答题情况</span>
-            </div>
-        </template>
+  <el-card class="stats-card" shadow="never">
+    <div class="stats-header">
+      <div>
+        <div class="stats-kicker">Overview</div>
+        <h3>练习统计</h3>
+        <p>{{ currentBankName || "选择题库后开始统计本轮练习表现" }}</p>
+      </div>
+      <div class="status-chip" :class="{ active: hasData }">
+        {{ hasData ? "实时更新" : "等待数据" }}
+      </div>
+    </div>
 
-        <!-- 上半部分：数据显示 -->
-        <div class="stats-display">
-            <div class="stat-item correct">
-                <span class="stat-value">{{ stats.correct }}</span>
-                <span class="stat-label">正确</span>
-            </div>
-            <div class="stat-item incorrect">
-                <span class="stat-value">{{ stats.incorrect }}</span>
-                <span class="stat-label">错误</span>
-            </div>
-        </div>
+    <div class="stats-grid">
+      <div class="stat-tile">
+        <span>已答题数</span>
+        <strong>{{ total }}</strong>
+      </div>
+      <div class="stat-tile success">
+        <span>答对</span>
+        <strong>{{ stats.correct }}</strong>
+      </div>
+      <div class="stat-tile danger">
+        <span>答错</span>
+        <strong>{{ stats.incorrect }}</strong>
+      </div>
+    </div>
 
-        <!-- 下半部分：图表 -->
-        <div class="chart-container">
-            <Doughnut v-if="hasData" :data="chartData" :options="chartOptions" />
-            <el-empty v-else description="暂无答题数据" :image-size="80" />
-        </div>
-    </el-card>
+    <div class="accuracy-panel">
+      <div class="accuracy-head">
+        <span>当前正确率</span>
+        <strong>{{ accuracy }}%</strong>
+      </div>
+      <el-progress
+        :percentage="accuracy"
+        :stroke-width="10"
+        :show-text="false"
+        color="#2176ff"
+      />
+    </div>
+
+    <div class="chart-panel">
+      <Doughnut v-if="hasData" :data="chartData" :options="chartOptions" />
+      <div v-else class="chart-empty">
+        <el-empty description="开始答题后这里会显示结果分布" :image-size="84" />
+      </div>
+    </div>
+  </el-card>
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { Doughnut } from 'vue-chartjs';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { ElCard, ElEmpty } from 'element-plus';
+import { computed } from "vue";
+import { Doughnut } from "vue-chartjs";
+import { Chart as ChartJS, ArcElement, Legend, Tooltip } from "chart.js";
 
-// 注册 Chart.js 模块
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// 接收从父组件传来的统计数据
 const props = defineProps({
-    stats: {
-        type: Object,
-        required: true,
-        default: () => ({ correct: 0, incorrect: 0 })
-    }
+  stats: {
+    type: Object,
+    required: true,
+    default: () => ({ correct: 0, incorrect: 0 }),
+  },
+  currentBankName: {
+    type: String,
+    default: "",
+  },
 });
 
-// 判断是否有数据用于显示图表
-const hasData = computed(() => props.stats.correct > 0 || props.stats.incorrect > 0);
+const total = computed(() => props.stats.correct + props.stats.incorrect);
+const hasData = computed(() => total.value > 0);
+const accuracy = computed(() => {
+  if (!total.value) return 0;
+  return Math.round((props.stats.correct / total.value) * 100);
+});
 
-// 根据 props 动态计算图表数据
 const chartData = computed(() => ({
-    labels: ['正确', '错误'],
-    datasets: [
-        {
-            backgroundColor: ['#67C23A', '#F56C6C'], // 成功和错误的颜色
-            data: [props.stats.correct, props.stats.incorrect]
-        }
-    ]
+  labels: ["答对", "答错"],
+  datasets: [
+    {
+      backgroundColor: ["#1f9d68", "#e35454"],
+      borderWidth: 0,
+      hoverOffset: 6,
+      data: [props.stats.correct, props.stats.incorrect],
+    },
+  ],
 }));
 
-// 图表配置项
 const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: {
-            position: 'bottom', // 图例放在底部
-        }
-    }
+  responsive: true,
+  maintainAspectRatio: false,
+  cutout: "68%",
+  plugins: {
+    legend: {
+      position: "bottom",
+      labels: {
+        usePointStyle: true,
+        boxWidth: 10,
+        color: "#5f6f89",
+        padding: 18,
+        font: {
+          family: "Outfit, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif",
+          size: 12,
+        },
+      },
+    },
+  },
 };
 </script>
 
 <style scoped>
 .stats-card {
-    width: 100%;
-    border-radius: 16px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px);
 }
 
-.card-header span {
-    font-weight: bold;
-    font-size: 18px;
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
 }
 
-.stats-display {
-    display: flex;
-    justify-content: space-around;
-    text-align: center;
-    margin-bottom: 24px;
+.stats-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(33, 118, 255, 0.1);
+  color: #1658c0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.stat-item .stat-value {
-    display: block;
-    font-size: 32px;
-    font-weight: bold;
-    line-height: 1.2;
+.stats-header h3 {
+  margin: 12px 0 8px;
+  font-size: 26px;
+  color: #17233c;
 }
 
-.stat-item .stat-label {
-    font-size: 14px;
-    color: #606266;
+.stats-header p {
+  margin: 0;
+  color: #657792;
+  line-height: 1.7;
 }
 
-.stat-item.correct .stat-value {
-    color: #67C23A;
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(133, 158, 196, 0.14);
+  color: #73839d;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.stat-item.incorrect .stat-value {
-    color: #F56C6C;
+.status-chip.active {
+  background: rgba(31, 157, 104, 0.12);
+  color: #1f9d68;
 }
 
-.chart-container {
-    position: relative;
-    height: 250px;
-    /* 给图表一个固定的高度 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.stat-tile {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 20px;
+  background: #f8fbff;
+  border: 1px solid rgba(133, 158, 196, 0.12);
+}
+
+.stat-tile span {
+  color: #70819b;
+  font-size: 13px;
+}
+
+.stat-tile strong {
+  color: #17233c;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.stat-tile.success {
+  background: rgba(31, 157, 104, 0.08);
+}
+
+.stat-tile.success strong {
+  color: #1f9d68;
+}
+
+.stat-tile.danger {
+  background: rgba(227, 84, 84, 0.08);
+}
+
+.stat-tile.danger strong {
+  color: #d54646;
+}
+
+.accuracy-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), #ffffff);
+  border: 1px solid rgba(133, 158, 196, 0.14);
+}
+
+.accuracy-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #64758f;
+}
+
+.accuracy-head strong {
+  color: #17233c;
+  font-size: 20px;
+}
+
+.chart-panel {
+  position: relative;
+  height: 290px;
+  margin-top: 18px;
+  padding: 12px 4px 0;
+}
+
+.chart-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 980px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-header {
+    flex-direction: column;
+  }
 }
 </style>
