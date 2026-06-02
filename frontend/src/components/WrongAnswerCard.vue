@@ -1,74 +1,71 @@
+<!-- /src/components/WrongAnswerCard.vue -->
 <template>
-  <el-card class="wrong-answer-card" shadow="never">
-    <div class="card-header">
-      <div class="header-main">
-        <div class="header-kicker">Review Queue</div>
-        <h3>错题复盘</h3>
-        <p>自动收集答错题目，支持随时导出整理。</p>
-      </div>
+  <div v-if="wrongAnswers.length > 0" class="wrong-answer-card-container">
+    <el-card class="wrong-answer-card">
+      <template #header>
+        <div class="card-header">
+          <el-icon>
+            <CollectionTag />
+          </el-icon>
+          <span>我的错题本</span>
+          <el-badge
+            :value="wrongAnswers.length"
+            type="danger"
+            class="count-badge"
+          />
 
-      <div class="header-actions">
-        <el-badge :value="wrongAnswers.length" type="danger" class="count-badge" />
-        <el-dropdown
-          class="export-dropdown"
-          @command="handleExport"
-          :disabled="!wrongAnswers.length"
-        >
-          <el-button type="primary" plain :icon="Download">
-            导出
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="md">导出为 Markdown</el-dropdown-item>
-              <el-dropdown-item command="txt">导出为 TXT</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-    </div>
+          <!-- 【新增】导出按钮，使用 el-dropdown 提供格式选择 -->
+          <el-dropdown @command="handleExport" class="export-dropdown">
+            <el-button type="primary" :icon="Download" link> 导出 </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="md"
+                  >导出为 Markdown</el-dropdown-item
+                >
+                <el-dropdown-item command="txt">导出为 TXT</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </template>
 
-    <el-scrollbar height="calc(100vh - 260px)">
-      <div v-if="wrongAnswers.length" class="wrong-list">
-        <article
+      <el-scrollbar height="calc(100vh - 200px)">
+        <div
           v-for="(item, index) in wrongAnswers"
-          :key="getQuestionKey(item, index)"
+          :key="item.questionData.id"
           class="wrong-item"
         >
-          <div class="wrong-item-top">
-            <span class="wrong-order">#{{ index + 1 }}</span>
-            <span class="wrong-title">{{ item.questionData.question }}</span>
+          <!-- ... 您原有的内容保持不变 ... -->
+          <p class="wrong-question-title">
+            {{ index + 1 }}. {{ item.questionData.question }}
+          </p>
+          <div class="wrong-options">
+            <ul>
+              <li
+                v-for="(opt, i) in item.questionData.options"
+                :key="i"
+                :class="{
+                  'correct-answer': item.questionData.correctAnswer.includes(
+                    String.fromCharCode(65 + i)
+                  ),
+                }"
+              >
+                {{ String.fromCharCode(65 + i) }}. {{ opt }}
+              </li>
+            </ul>
           </div>
-
-          <div v-if="item.questionData.options?.length" class="wrong-options">
-            <div
-              v-for="(opt, i) in item.questionData.options"
-              :key="i"
-              class="wrong-option"
-              :class="{
-                correct: item.questionData.correctAnswer.includes(
-                  String.fromCharCode(65 + i)
-                ),
-              }"
-            >
-              <span class="option-code">{{ String.fromCharCode(65 + i) }}</span>
-              <span>{{ opt }}</span>
-            </div>
+          <div class="answer-display">
+            <span>你的答案:</span>
+            <el-tag type="danger" effect="light" round>{{
+              formatDisplayAnswer(item.questionData.userAnswer)
+            }}</el-tag>
           </div>
-
-          <div class="answer-row">
-            <span>你的答案</span>
-            <el-tag type="danger" effect="light" round>
-              {{ formatDisplayAnswer(item.questionData.userAnswer) || "未作答" }}
-            </el-tag>
+          <div class="answer-display">
+            <span>正确答案:</span>
+            <el-tag type="success" effect="light" round>{{
+              formatDisplayAnswer(item.questionData.correctAnswer)
+            }}</el-tag>
           </div>
-
-          <div class="answer-row">
-            <span>正确答案</span>
-            <el-tag type="success" effect="light" round>
-              {{ formatDisplayAnswer(item.questionData.correctAnswer) }}
-            </el-tag>
-          </div>
-
           <el-alert
             v-if="item.questionData.explanation"
             class="explanation-alert"
@@ -77,24 +74,15 @@
             :description="item.questionData.explanation"
             :closable="false"
           />
-        </article>
-      </div>
-
-      <div v-else class="empty-wrap">
-        <el-empty description="当前还没有错题，继续保持。">
-          <template #image>
-            <div class="empty-badge">
-              <el-icon><CollectionTag /></el-icon>
-            </div>
-          </template>
-        </el-empty>
-      </div>
-    </el-scrollbar>
-  </el-card>
+        </div>
+      </el-scrollbar>
+    </el-card>
+  </div>
 </template>
 
 <script setup>
 import { CollectionTag, Download } from "@element-plus/icons-vue";
+// 【新增】引入 file-saver
 import { saveAs } from "file-saver";
 
 const props = defineProps({
@@ -105,9 +93,7 @@ const props = defineProps({
   },
 });
 
-const getQuestionKey = (item, index) =>
-  item.questionData?.idx ?? item.questionData?.id ?? index;
-
+// 【新增】格式化答案显示，将数组转为字符串
 const formatDisplayAnswer = (answer) => {
   if (Array.isArray(answer)) {
     return answer.join(", ");
@@ -115,53 +101,58 @@ const formatDisplayAnswer = (answer) => {
   return answer;
 };
 
+// 【新增】导出逻辑
 const handleExport = (format) => {
-  if (!props.wrongAnswers.length) return;
-
   const content = generateExportContent(format);
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, "");
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  saveAs(blob, `错题本-${timestamp}.${format}`);
+  saveAs(blob, `错题本_${timestamp}.${format}`);
 };
 
+// 【新增】生成导出内容的函数
 const generateExportContent = (format) => {
-  const isMarkdown = format === "md";
-  let content = isMarkdown ? "# 我的错题本\n\n" : "我的错题本\n\n";
+  let content = "";
+  const isMd = format === "md";
+
+  // 文件标题
+  content += isMd ? "# 我的错题本\n\n" : "--- 我的错题本 ---\n\n";
 
   props.wrongAnswers.forEach((item, index) => {
-    const question = item.questionData;
-    const userAnswer = formatDisplayAnswer(question.userAnswer) || "未作答";
-    const correctAnswer = formatDisplayAnswer(question.correctAnswer);
+    const q = item.questionData;
+    const userAns = formatDisplayAnswer(q.userAnswer);
+    const correctAns = formatDisplayAnswer(q.correctAnswer);
 
-    if (isMarkdown) {
-      content += `## ${index + 1}. ${question.question}\n\n`;
-      if (question.options?.length) {
-        question.options.forEach((opt, optionIndex) => {
-          content += `- ${String.fromCharCode(65 + optionIndex)}. ${opt}\n`;
+    if (isMd) {
+      // Markdown 格式
+      content += `## ${index + 1}. ${q.question}\n\n`;
+      if (q.options && q.options.length > 0) {
+        q.options.forEach((opt, i) => {
+          content += `- ${String.fromCharCode(65 + i)}. ${opt}\n`;
         });
         content += "\n";
       }
-      content += `**你的答案：** \`${userAnswer}\`\n\n`;
-      content += `**正确答案：** \`${correctAnswer}\`\n\n`;
-      if (question.explanation) {
-        content += `> 解析：${question.explanation}\n\n`;
+      content += `**你的答案：** \`${userAns}\`\n\n`;
+      content += `**正确答案：** \`${correctAns}\`\n\n`;
+      if (q.explanation) {
+        content += `> **【解析】**\n> ${q.explanation}\n\n`;
       }
       content += "---\n\n";
-      return;
+    } else {
+      // TXT 格式
+      content += `${index + 1}. ${q.question}\n`;
+      if (q.options && q.options.length > 0) {
+        q.options.forEach((opt, i) => {
+          content += `   ${String.fromCharCode(65 + i)}. ${opt}\n`;
+        });
+      }
+      content += `\n`;
+      content += `你的答案：${userAns}\n`;
+      content += `正确答案：${correctAns}\n`;
+      if (q.explanation) {
+        content += `【解析】：${q.explanation}\n`;
+      }
+      content += `\n========================================\n\n`;
     }
-
-    content += `${index + 1}. ${question.question}\n`;
-    if (question.options?.length) {
-      question.options.forEach((opt, optionIndex) => {
-        content += `   ${String.fromCharCode(65 + optionIndex)}. ${opt}\n`;
-      });
-    }
-    content += `你的答案：${userAnswer}\n`;
-    content += `正确答案：${correctAnswer}\n`;
-    if (question.explanation) {
-      content += `解析：${question.explanation}\n`;
-    }
-    content += "\n========================================\n\n";
   });
 
   return content;
@@ -169,176 +160,86 @@ const generateExportContent = (format) => {
 </script>
 
 <style scoped>
+.wrong-answer-card-container {
+  width: 100%;
+}
+
 .wrong-answer-card {
-  border-radius: 28px;
-  height: calc(100vh - 180px);
+  border-radius: 16px;
+  height: calc(100vh - 120px);
   position: sticky;
-  top: 32px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(18px);
+  top: 84px;
 }
 
 .card-header {
   display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: start;
-  margin-bottom: 18px;
-}
-
-.header-kicker {
-  display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(227, 84, 84, 0.1);
-  color: #c13f3f;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  justify-content: start;
+  font-weight: bold;
+  font-size: 18px;
 }
 
-.header-main h3 {
-  margin: 12px 0 8px;
-  font-size: 26px;
-  color: #17233c;
+.card-header .el-icon {
+  margin-right: 8px;
+  font-size: 20px;
 }
 
-.header-main p {
-  margin: 0;
-  color: #657792;
-  line-height: 1.7;
+.count-badge {
+  margin-left: 16px;
 }
 
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.count-badge :deep(.el-badge__content) {
-  transform: none;
-}
-
-.wrong-list {
-  display: grid;
-  gap: 16px;
+/* 【新增】导出按钮的样式 */
+.export-dropdown {
+  margin-left: auto;
 }
 
 .wrong-item {
-  padding: 18px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(251, 253, 255, 0.98), #ffffff);
-  border: 1px solid rgba(133, 158, 196, 0.14);
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px dashed #e4e7ed;
 }
 
-.wrong-item-top {
+.wrong-item:last-child {
+  border-bottom: none;
+}
+
+.wrong-question-title {
+  font-weight: 500;
+  margin: 0 0 12px 0;
+  color: #303133;
+  line-height: 1.6;
+}
+
+.answer-display {
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.wrong-order {
-  display: inline-flex;
-  justify-content: center;
   align-items: center;
-  min-width: 40px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: rgba(227, 84, 84, 0.1);
-  color: #c13f3f;
-  font-weight: 700;
-}
-
-.wrong-title {
-  color: #17233c;
-  font-weight: 700;
-  line-height: 1.7;
-}
-
-.wrong-options {
-  display: grid;
+  justify-self: flex-start;
   gap: 8px;
-  margin-top: 14px;
+  margin-bottom: 10px;
+  font-size: 14px;
 }
 
-.wrong-option {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #f7faff;
-  color: #596b86;
-}
-
-.wrong-option.correct {
-  background: rgba(31, 157, 104, 0.1);
-  color: #1f9d68;
-}
-
-.option-code {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  background: rgba(24, 40, 72, 0.06);
-  font-size: 12px;
-  font-weight: 800;
-  color: #17233c;
-}
-
-.answer-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-  margin-top: 14px;
-  color: #677993;
+.answer-display span {
+  color: #606266;
 }
 
 .explanation-alert {
   margin-top: 16px;
 }
-
-.empty-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 320px;
+.wrong-options ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
-.empty-badge {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  width: 88px;
-  height: 88px;
-  border-radius: 26px;
-  background: rgba(33, 118, 255, 0.1);
-  color: #1658c0;
-  font-size: 36px;
+.wrong-options li {
+  margin-bottom: 6px;
+  color: #606266;
+  text-decoration: none;
 }
 
-@media (max-width: 1360px) {
-  .wrong-answer-card {
-    position: static;
-    height: auto;
-  }
-}
-
-@media (max-width: 980px) {
-  .card-header {
-    flex-direction: column;
-  }
-
-  .header-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
+.wrong-options .correct-answer {
+  color: #67c23a;
+  font-weight: bold;
 }
 </style>

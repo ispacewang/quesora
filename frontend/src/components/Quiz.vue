@@ -1,163 +1,110 @@
 <template>
-  <el-card class="quiz-shell" shadow="never">
-    <div class="quiz-topbar">
-      <div class="topbar-copy">
-        <div class="section-kicker">Practice Flow</div>
-        <h3>智能刷题</h3>
-        <p>先选题库，再按当前模式持续练习。错题会自动归档，方便后续复盘。</p>
-      </div>
-
-      <div class="topbar-actions">
-        <div class="mode-panel">
-          <div class="mode-label">
-            <span>答题模式</span>
-            <strong>{{ questionMod ? "顺序练习" : "随机练习" }}</strong>
-          </div>
-          <el-switch
-            v-model="questionMod"
-            inline-prompt
-            class="mode-switch"
-            active-text="顺序"
-            inactive-text="随机"
-            @change="handleModeChange"
-          />
-        </div>
-        <div class="sync-tip">错题会自动沉淀到“我的错题库”</div>
-      </div>
+  <el-card class="quiz-card">
+    <div class="card-header">
+      <h3>答题区</h3>
+      <el-switch
+        v-model="questionMod"
+        inline-prompt
+        class="mode-switch"
+        style="--el-switch-on-color: #13ce66; --el-switch-off-color: #409eff"
+        active-text="顺序答题"
+        inactive-text="随机答题"
+        @change="handleModeChange"
+      >
+      </el-switch>
+      <!-- 【新】添加 ref，以便在脚本中调用其方法 -->
+      <BankSelector ref="bankSelectorRef" @bank-change="onBankChange" />
     </div>
 
-    <BankSelector ref="bankSelectorRef" @bank-change="onBankChange" />
-
+    <!-- 条件渲染的根容器 -->
     <div class="main-content-area">
-      <div v-if="loading" class="loading-state">
-        <div class="loading-card">
-          <el-skeleton animated>
-            <template #template>
-              <el-skeleton-item variant="text" style="width: 28%; height: 18px" />
-              <el-skeleton-item
-                variant="h3"
-                style="width: 92%; height: 30px; margin-top: 18px"
-              />
-              <el-skeleton-item
-                variant="text"
-                style="width: 100%; height: 16px; margin-top: 26px"
-              />
-              <el-skeleton-item
-                variant="text"
-                style="width: 100%; height: 16px; margin-top: 12px"
-              />
-              <el-skeleton-item
-                variant="rect"
-                style="width: 100%; height: 64px; margin-top: 28px; border-radius: 18px"
-              />
-              <el-skeleton-item
-                variant="rect"
-                style="width: 100%; height: 64px; margin-top: 14px; border-radius: 18px"
-              />
-            </template>
-          </el-skeleton>
-        </div>
+      <!-- 加载状态 -->
+      <div v-if="loading" class="placeholder">
+        <el-skeleton :rows="5" animated />
       </div>
 
+      <!-- 题目显示区域 -->
       <div v-else-if="question" class="question-container">
         <Transition name="question-change" mode="out-in">
-          <div :key="idx" class="question-stage">
-            <div class="meta-row">
-              <div class="meta-tags">
-                <el-tag class="meta-tag" effect="dark" type="primary">
-                  {{ question.type }}
-                </el-tag>
-                <el-tag
-                  v-if="question.meta?.['题目分类']"
-                  class="meta-tag"
-                  effect="plain"
-                  type="success"
-                >
-                  {{ question.meta["题目分类"] }}
-                </el-tag>
-                <el-tag
-                  v-if="question.meta?.['一级纲要']"
-                  class="meta-tag"
-                  effect="plain"
-                  type="warning"
-                >
-                  {{ question.meta["一级纲要"] }}
-                </el-tag>
-              </div>
-
-              <div class="bank-indicator">
-                <span>{{ isMistakeMode ? "错题回顾" : "当前题库" }}</span>
-                <strong>{{ currentBankLabel }}</strong>
-              </div>
-            </div>
-
-            <div class="question-card">
-              <div class="question-head">
-                <div>
-                  <div class="question-index">题目编号 {{ idx }}</div>
-                  <h2>{{ question.question }}</h2>
-                </div>
-                <div class="question-hint">
-                  <span>{{ answerHintText }}</span>
-                  <strong>{{ questionMod ? "顺序推进" : "随机抽题" }}</strong>
-                </div>
-              </div>
-
-              <el-input
-                v-if="isShortAnswer"
-                v-model="userAnswer"
-                type="textarea"
-                :rows="5"
-                resize="none"
-                class="answer-input"
-                placeholder="输入你的答案，提交后查看结果与解析"
-              />
-
-              <el-checkbox-group
-                v-else-if="isMultiChoice"
-                v-model="userAnswer"
-                class="option-group"
+          <div :key="idx" class="question-wrapper">
+            <!-- ... 您原来的题目显示部分，无需改动 ... -->
+            <div style="margin-bottom: 16px">
+              <el-tag type="primary" style="margin-right: 8px">{{
+                question.type
+              }}</el-tag>
+              <el-tag
+                v-if="question.meta?.['题目分类']"
+                type="success"
+                style="margin-right: 8px"
+                >{{ question.meta["题目分类"] }}</el-tag
               >
-                <el-checkbox
-                  v-for="(opt, i) in question.options"
-                  :key="i"
-                  :label="String.fromCharCode(65 + i)"
-                  class="option-card"
-                >
-                  <span class="option-prefix">{{ String.fromCharCode(65 + i) }}</span>
-                  <span class="option-text">{{ opt }}</span>
-                </el-checkbox>
-              </el-checkbox-group>
-
-              <el-radio-group v-else v-model="userAnswer" class="option-group">
-                <el-radio
-                  v-for="(opt, i) in question.options"
-                  :key="i"
-                  :label="isJudge ? opt : String.fromCharCode(65 + i)"
-                  class="option-card"
-                >
-                  <span class="option-prefix">
-                    {{ isJudge ? "判断" : String.fromCharCode(65 + i) }}
-                  </span>
-                  <span class="option-text">{{ opt }}</span>
-                </el-radio>
-              </el-radio-group>
+              <el-tag v-if="question.meta?.['一级纲要']" type="warning">{{
+                question.meta["一级纲要"]
+              }}</el-tag>
             </div>
+            <div
+              style="
+                margin-bottom: 24px;
+                text-align: left;
+                font-size: 1.1em;
+                line-height: 1.6;
+              "
+            >
+              {{ question.question }}
+            </div>
+            <el-input
+              v-if="isShortAnswer"
+              v-model="userAnswer"
+              type="textarea"
+              :rows="4"
+              placeholder="请输入你的答案"
+              style="margin-bottom: 16px"
+            />
+            <el-checkbox-group
+              v-else-if="isMultiChoice"
+              v-model="userAnswer"
+              class="option-group"
+            >
+              <el-checkbox
+                v-for="(opt, i) in question.options"
+                :key="i"
+                :label="String.fromCharCode(65 + i)"
+                class="duoxuan"
+              >
+                {{ String.fromCharCode(65 + i) + ". " + opt }}
+              </el-checkbox>
+            </el-checkbox-group>
+            <el-radio-group v-else v-model="userAnswer" class="option-group">
+              <el-radio
+                v-for="(opt, i) in question.options"
+                :key="i"
+                :label="isJudge ? opt : String.fromCharCode(65 + i)"
+                class="danxuan"
+              >
+                {{ isJudge ? opt : String.fromCharCode(65 + i) + ". " + opt }}
+              </el-radio>
+            </el-radio-group>
+            <!-- ... 您原来的题目显示部分结束 ... -->
 
-            <div class="action-bar">
-              <div class="action-buttons">
+            <div style="margin-top: 24px">
+              <div class="button-group">
                 <el-button
                   class="submit-button"
                   type="primary"
                   size="large"
                   round
                   :icon="Check"
-                  :disabled="!canSubmit || submitted || submitting"
-                  :loading="submitting"
                   @click="submit"
+                  :disabled="
+                    (isMultiChoice ? userAnswer.length === 0 : !userAnswer) ||
+                    submitted ||
+                    submitting
+                  "
+                  :loading="submitting"
                 >
-                  {{ submitting ? "正在判题..." : "提交答案" }}
+                  {{ submitting ? "判题中..." : "提交" }}
                 </el-button>
+                <!-- 【改】修改 v-if 条件，在错题库模式下答对或答错后都显示“下一题” -->
                 <el-button
                   v-if="submitted && (resultType === 'error' || isMistakeMode)"
                   class="next-button"
@@ -169,71 +116,67 @@
                   下一题
                 </el-button>
               </div>
-              <div class="action-caption">
-                {{
-                  submitted
-                    ? "结果已生成，可以查看解析或进入下一题。"
-                    : actionTipText
-                }}
-              </div>
             </div>
 
-            <div v-if="submitted" class="result-panel">
+            <!-- 【改】修改 v-if 条件，只要提交了就显示结果区域，而不仅是答错时 -->
+            <div v-if="submitted" style="margin-top: 24px; text-align: left">
               <el-alert
                 :title="resultTitle"
                 :type="resultType"
                 :closable="false"
                 show-icon
               />
-
-              <div v-if="explanation" class="explanation-panel">
-                <div class="explanation-title">答案解析</div>
-                <p>{{ explanation }}</p>
+              <!-- 【改】增加 v-if，只有存在解析时才显示解析区域 -->
+              <div
+                v-if="explanation"
+                style="
+                  margin-top: 16px;
+                  padding: 16px;
+                  background-color: #f7f8fa;
+                  border-radius: 8px;
+                "
+              >
+                <strong style="color: #303133">【深度解析】</strong>
+                <p style="margin: 8px 0 0 0; color: #606266; line-height: 1.7">
+                  {{ explanation }}
+                </p>
               </div>
             </div>
           </div>
         </Transition>
       </div>
 
-      <div v-else class="empty-state">
-        <el-empty :description="emptyDescription">
-          <template #image>
-            <div class="empty-illustration">
-              <div class="empty-orb"></div>
-              <div class="empty-card">
-                <strong>{{ isMistakeMode ? "错题库已清空" : "等待开始" }}</strong>
-                <span>
-                  {{
-                    isMistakeMode
-                      ? "当前没有待复习错题，可以回到正常题库继续练习。"
-                      : "从上方选择题库后即可开始答题。"
-                  }}
-                </span>
-              </div>
-            </div>
-          </template>
-        </el-empty>
+      <!-- 空状态 -->
+      <div v-else class="placeholder">
+        <!-- 【改】动态显示空状态的描述文本 -->
+        <el-empty :description="emptyDescription" />
       </div>
     </div>
   </el-card>
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
-import { ElMessage } from "element-plus";
-import { ArrowRight, Check } from "@element-plus/icons-vue";
+// --- Script 部分，在您原有代码基础上进行修改 ---
+import { ref, computed } from "vue";
 import { getQuestion, submitAnswer } from "../api";
 import BankSelector from "./BankSelector.vue";
+import { Check, ArrowRight } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
+
+// 【新】引入错题库工具和常量
 import {
   MISTAKE_BOOK_ID,
-  addQuestionToMistakeBook,
   getMistakeBook,
+  addQuestionToMistakeBook,
   removeQuestionFromMistakeBook,
 } from "../utils/mistakeBook";
 
+// 【新】创建对 BankSelector 组件的引用
 const bankSelectorRef = ref(null);
-const questionMod = ref(true);
 
+const questionMod = ref(true); 
+
+// --- 您的原有状态，保持不变 ---
 const question = ref(null);
 const idx = ref(null);
 const userAnswer = ref("");
@@ -245,81 +188,63 @@ const loading = ref(false);
 const submitting = ref(false);
 const currentBank = ref("");
 
-const emit = defineEmits(["answer-submitted", "bank-changed"]);
-
+// --- 您的原有计算属性，稍作补充 ---
 const isJudge = computed(() => {
   if (!question.value?.options) return false;
-  const opts = question.value.options.map((item) => item.trim());
+  const opts = question.value.options.map((o) => o.trim());
   return (
     opts.length === 2 &&
     ((opts[0] === "正确" && opts[1] === "错误") ||
       (opts[0] === "对" && opts[1] === "错"))
   );
 });
-
 const isShortAnswer = computed(() => question.value?.type === "简答题");
 const isMultiChoice = computed(() => question.value?.type === "多选题");
+
+// 【新】增加一个计算属性，判断当前是否是错题库模式
 const isMistakeMode = computed(() => currentBank.value === MISTAKE_BOOK_ID);
 
-const canSubmit = computed(() => {
-  if (isMultiChoice.value) {
-    return Array.isArray(userAnswer.value) && userAnswer.value.length > 0;
-  }
-  return Boolean(userAnswer.value);
-});
+const emit = defineEmits(["answer-submitted", "bank-changed"]);
 
-const currentBankLabel = computed(() =>
-  isMistakeMode.value ? "我的错题库" : currentBank.value
-);
-
-const answerHintText = computed(() => {
-  if (isShortAnswer.value) return "开放作答，建议写出关键点";
-  if (isMultiChoice.value) return "多选题，可选择多个答案";
-  if (isJudge.value) return "判断题，点击一个选项即可";
-  return "单选题，选择最符合题意的一项";
-});
-
-const actionTipText = computed(() => {
-  if (isMistakeMode.value) {
-    return "在错题模式下，答对后会自动从错题库移除。";
-  }
-  return "答对会自动跳转下一题，答错会保留结果与解析。";
-});
-
+// 【新】动态计算空状态的描述
 const emptyDescription = computed(() => {
   if (isMistakeMode.value) {
-    return "错题已经清空，继续保持。";
+    return "恭喜！错题库已清空，继续加油！";
   }
-  return "请选择一个题库开始练习。";
+  return "请先选择一个题库开始答题";
 });
 
-const resetQuestionState = () => {
+// 【新增】处理切换模式的事件
+
+const handleModeChange = (e) => {
+  console.log("切换模式:", e);
+  // 切换模式后，我们应该从头开始获取题目，以避免逻辑混乱
+  // 比如从随机模式切换到顺序模式，应该从第一题开始
+  loadQuestion(e); 
+};
+
+// 【改】重构 loadQuestion 方法，以支持两种模式
+// 在 Quiz.vue 中，修改 loadQuestion 函数
+const loadQuestion = async (isReset) => {
+  if (!currentBank.value) return;
+  loading.value = true;
+
+  // --- 在这里提前重置所有状态 ---
   submitted.value = false;
   resultTitle.value = "";
-  resultType.value = "info";
   explanation.value = "";
-  question.value = null;
-  idx.value = null;
-  userAnswer.value = "";
-};
-
-const handleModeChange = (order) => {
-  if (!currentBank.value) return;
-  loadQuestion(order);
-};
-
-const loadQuestion = async (order) => {
-  if (!currentBank.value) return;
-
-  loading.value = true;
-  resetQuestionState();
+  question.value = null; // 先清空题目
+  idx.value = null; // 【核心修正】提前重置 idx
+  userAnswer.value = ""; // 提前重置答案
+  // --------------------------------
 
   if (isMistakeMode.value) {
     loadFromMistakeBook();
   } else {
-    await loadFromApi(order);
+    await loadFromApi(isReset);
   }
 
+  // 如果是多选题，在加载成功后再特殊处理 userAnswer
   if (question.value && isMultiChoice.value) {
     userAnswer.value = [];
   }
@@ -327,166 +252,195 @@ const loadQuestion = async (order) => {
   loading.value = false;
 };
 
+// 【新】从本地错题库加载题目的逻辑
 const loadFromMistakeBook = () => {
   const book = getMistakeBook();
-  if (!book.length) {
-    question.value = null;
-    ElMessage.success("错题库已清空");
-    bankSelectorRef.value?.refreshBanks();
-    return;
+  if (book.length > 0) {
+    const randomIndex = Math.floor(Math.random() * book.length);
+    const mistakeQuestion = book[randomIndex];
+    question.value = mistakeQuestion;
+    idx.value = mistakeQuestion.idx;
+    userAnswer.value = isMultiChoice.value ? [] : "";
+  } else {
+    question.value = null; // 标志错题库已空
+    ElMessage.success("太棒了！所有错题都已掌握！");
+    bankSelectorRef.value?.refreshBanks(); // 刷新题库列表，让错题库卡片消失
   }
-
-  const randomIndex = Math.floor(Math.random() * book.length);
-  const mistakeQuestion = book[randomIndex];
-  question.value = mistakeQuestion;
-  idx.value = mistakeQuestion.idx;
-  userAnswer.value = mistakeQuestion.type === "多选题" ? [] : "";
 };
+
+// 【新】从API加载题目的逻辑（从您原有的 loadQuestion 中提取）
+// 在 Quiz.vue 中，修改 loadFromApi 函数
 
 const loadFromApi = async (order) => {
   try {
     const res = await getQuestion(currentBank.value, order);
-    const apiData = res.data;
+    const apiData = res.data; // 先将后端数据存入临时变量
+    // 1. 设置独立的 idx 状态，这部分逻辑是正确的，保持不变
     idx.value = apiData.id;
+    // 2. 创建 question.value 对象时，手动将 id 赋值给 idx 属性
     question.value = {
-      ...apiData,
-      idx: apiData.id,
+      ...apiData, // 展开所有从后端获取的属性 (question, options, type, id, meta等)
+      idx: apiData.id, // 额外添加或覆盖一个 idx 属性，使其与 id 的值相同
     };
-    userAnswer.value = apiData.type === "多选题" ? [] : "";
-  } catch (error) {
+    // --- 修改结束 ---
+    // 后续逻辑保持不变
+    userAnswer.value = isMultiChoice.value ? [] : "";
+    console.log("题目加载成功，ID (idx):", idx.value); // 日志可以改得更清晰
+  } catch (e) {
+    console.error("加载题目失败:", e);
     question.value = null;
     idx.value = null;
     userAnswer.value = "";
-    ElMessage.error("加载题目失败，请稍后重试");
+    ElMessage.error("加载题目失败！请检查网络或刷新页面。");
   }
 };
 
+// 【改】重构 submit 方法，以支持两种判题模式
 const submit = async () => {
-  if (!canSubmit.value || submitting.value) return;
-
+  // 在这里添加日志打印
+  if (
+    (isMultiChoice.value ? userAnswer.value.length === 0 : !userAnswer.value) ||
+    submitting.value
+  )
+    return;
   submitting.value = true;
 
   if (isMistakeMode.value) {
     submitInMistakeMode();
   } else {
-    await submitToApi();
+    console.log("questionMod.value:", questionMod.value);
+    await submitToApi(questionMod.value);
   }
 
   submitting.value = false;
 };
 
 const submitInMistakeMode = () => {
+  // 错题库中的题目对象必须包含 answer 和 explanation 字段
   const correctAnswer = question.value.answer;
   const isCorrect =
     formatAnswer(userAnswer.value) === formatAnswer(correctAnswer);
-
+  // 【核心修正】无论对错，都先准备好要 emit 的完整数据
   const questionDataForEmit = {
-    ...question.value,
+    ...question.value, // 包含原始问题、选项、类型、idx等
     correctAnswer: formatAnswer(correctAnswer),
     userAnswer: formatAnswer(userAnswer.value),
     explanation: question.value.explanation,
   };
-
   submitted.value = true;
-  explanation.value = question.value.explanation || "";
-
   if (isCorrect) {
     resultType.value = "success";
-    resultTitle.value = "回答正确，这道题已从错题库移除";
+    resultTitle.value = "回答正确！该题已掌握";
+    explanation.value = question.value.explanation;
+    ElMessage.success("回答正确！已从错题库移除。");
     removeQuestionFromMistakeBook(question.value.idx);
-    bankSelectorRef.value?.refreshBanks();
-    ElMessage.success("回答正确");
+    bankSelectorRef.value?.refreshBanks(); // 实时更新题库卡片
+    // 【修改】发送结构统一的数据
     emit("answer-submitted", {
       isCorrect: true,
       questionData: questionDataForEmit,
     });
-    return;
+  } else {
+    resultType.value = "error";
+    resultTitle.value = `回答错误，正确答案：${formatAnswer(correctAnswer)}`;
+    explanation.value = question.value.explanation;
+    // 【修改】发送结构统一的数据
+    emit("answer-submitted", {
+      isCorrect: false,
+      questionData: questionDataForEmit,
+    });
   }
-
-  resultType.value = "error";
-  resultTitle.value = `回答错误，正确答案：${formatAnswer(correctAnswer)}`;
-  emit("answer-submitted", {
-    isCorrect: false,
-    questionData: questionDataForEmit,
-  });
 };
 
+// 【新】提交到API进行判题（从您原有的 submit 中提取）
+// 在 Quiz.vue 中
 const submitToApi = async () => {
+  // 【新增】安全检查：如果题目 ID 不存在，则阻止提交并提示
+
   try {
-    const res = await submitAnswer(idx.value, userAnswer.value, currentBank.value);
+    const res = await submitAnswer(
+      idx.value,
+      userAnswer.value,
+      currentBank.value
+    );
     const { correct, answer, explanation: exp } = res.data;
 
+    // 【核心修改】将 questionData 的构建逻辑提前，确保 emit 时总能使用
     const questionDataForEmit = {
       ...question.value,
       correctAnswer: formatAnswer(answer),
       userAnswer: formatAnswer(userAnswer.value),
       explanation: exp,
-      options: question.value.options,
+      options: question.value.options, // 保留选项信息
     };
 
     if (correct) {
+      // 【修改】答对时，也发送完整的 questionData
       emit("answer-submitted", {
         isCorrect: true,
         questionData: questionDataForEmit,
       });
-      ElMessage({
-        message: "回答正确",
-        type: "success",
-        duration: 1000,
-      });
+
+      ElMessage({ message: "回答正确！", type: "success", duration: 1000 });
       setTimeout(() => {
+        console.log("questionMod.value:", questionMod.value);
         next();
       }, 1000);
-      return;
+    } else {
+      submitted.value = true;
+      resultTitle.value = `回答错误，正确答案：${formatAnswer(answer)}`;
+      resultType.value = "error";
+      explanation.value = exp;
+
+      // 【核心】将错题加入错题库
+      const fullQuestionData = { ...question.value, answer, explanation: exp };
+      addQuestionToMistakeBook(fullQuestionData);
+      bankSelectorRef.value?.refreshBanks(); // 实时更新题库卡片
+
+      // 【修改】现在这里的 emit 和答对时的结构完全一致
+      emit("answer-submitted", {
+        isCorrect: false,
+        questionData: questionDataForEmit,
+      });
     }
-
-    submitted.value = true;
-    resultTitle.value = `回答错误，正确答案：${formatAnswer(answer)}`;
-    resultType.value = "error";
-    explanation.value = exp;
-
-    const fullQuestionData = { ...question.value, answer, explanation: exp };
-    addQuestionToMistakeBook(fullQuestionData);
-    bankSelectorRef.value?.refreshBanks();
-
-    emit("answer-submitted", {
-      isCorrect: false,
-      questionData: questionDataForEmit,
-    });
-  } catch (error) {
-    ElMessage.error("判题服务异常，请检查网络或服务状态");
+  } catch (e) {
+    // 现在的 catch 块更有可能是真正的网络或服务器问题
+    console.error("判题服务API调用失败:", e); // 在控制台打印详细错误，方便调试
+    ElMessage.error("判题服务异常，请检查网络或联系管理员！");
   }
 };
 
-const formatAnswer = (answer) => {
-  if (!answer) return "";
+// 在 Quiz.vue 的 <script setup> 中，替换掉旧的 formatAnswer
 
+const formatAnswer = (ans) => {
+  if (!ans) return "";
   let chars;
-  if (Array.isArray(answer)) {
-    chars = answer.map(String);
+  if (Array.isArray(ans)) {
+    // 如果是数组 ['A', 'B', 'D']
+    chars = ans.map(String);
   } else {
-    chars = String(answer).replace(/,/g, "").split("");
+    // 如果是字符串 "ABD" 或 "A,B,D"，先去掉逗号再拆成字符数组
+    chars = String(ans).replace(/,/g, "").split("");
   }
-
+  // 统一排序并连接成字符串
   return chars.sort().join("");
 };
 
 const next = () => {
+  // 【改】在切换下一题前重置提交状态，确保按钮可用
   submitting.value = false;
   loadQuestion(questionMod.value);
 };
-
 const resetQuestion = () => {
-  loadQuestion(questionMod.value);
+  loadQuestion();
 };
-
 const onBankChange = (bank) => {
   currentBank.value = bank;
   emit("bank-changed", bank);
   if (bank) {
-    loadQuestion(questionMod.value);
+    loadQuestion();
   } else {
-    resetQuestionState();
+    question.value = null;
   }
 };
 
@@ -494,437 +448,183 @@ defineExpose({ resetQuestion });
 </script>
 
 <style scoped>
-.quiz-shell {
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(18px);
-}
-
-.quiz-topbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 4px 4px 28px;
-}
-
-.topbar-copy h3 {
-  margin: 14px 0 10px;
-  font-size: 30px;
-  letter-spacing: -0.02em;
-}
-
-.topbar-copy p {
-  margin: 0;
-  max-width: 580px;
-  color: #62748f;
-  line-height: 1.8;
-}
-
-.section-kicker {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(33, 118, 255, 0.1);
-  color: #1658c0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.topbar-actions {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  min-width: 240px;
-}
-
-.mode-panel {
-  display: grid;
-  gap: 12px;
-  padding: 16px 18px;
-  border-radius: 20px;
-  border: 1px solid rgba(133, 158, 196, 0.15);
-  background: linear-gradient(180deg, #f8fbff, #ffffff);
-}
-
-.mode-label {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: baseline;
-}
-
-.mode-label span {
-  color: #70819c;
-  font-size: 13px;
-}
-
-.mode-label strong {
-  color: #16233c;
-  font-size: 15px;
-}
-
-.mode-switch {
-  justify-self: end;
-}
-
-.sync-tip {
-  color: #70819c;
-  font-size: 13px;
-  text-align: right;
+/* 您的所有样式都无需改动 */
+.quiz-card {
+  /* width: 600px; */
+  border-radius: 16px;
+  padding: 16px 24px;
 }
 
 .main-content-area,
-.question-container,
-.loading-state,
-.empty-state {
-  min-height: 520px;
-}
-
-.loading-state,
-.empty-state {
+.placeholder,
+.question-container {
+  min-height: 400px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
 }
 
-.loading-card {
-  width: 100%;
-  padding: 26px;
-  border-radius: 28px;
-  background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
-  border: 1px solid rgba(133, 158, 196, 0.15);
-}
-
-.question-stage {
-  display: grid;
-  gap: 18px;
-}
-
-.meta-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-}
-
-.meta-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.meta-tag {
-  border-radius: 999px;
-}
-
-.bank-indicator {
-  display: grid;
-  justify-items: end;
-  gap: 6px;
-  padding: 14px 16px;
-  min-width: 180px;
-  border-radius: 20px;
-  border: 1px solid rgba(133, 158, 196, 0.15);
-  background: rgba(255, 255, 255, 0.86);
-}
-
-.bank-indicator span {
-  color: #7c8ca6;
-  font-size: 12px;
-}
-
-.bank-indicator strong {
-  color: #17233c;
-  font-size: 15px;
-}
-
-.question-card {
-  padding: 28px;
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(250, 252, 255, 0.98), #ffffff);
-  border: 1px solid rgba(133, 158, 196, 0.15);
-  box-shadow: 0 16px 34px rgba(24, 46, 84, 0.06);
-}
-
-.question-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 24px;
-}
-
-.question-index {
-  display: inline-flex;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: rgba(33, 118, 255, 0.1);
-  color: #1658c0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
-.question-head h2 {
-  margin: 14px 0 0;
-  font-size: clamp(24px, 3vw, 32px);
-  line-height: 1.45;
-  text-align: left;
-  color: #17233c;
-}
-
-.question-hint {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  min-width: 188px;
-  padding: 16px;
-  border-radius: 20px;
-  background: #f6f9ff;
-  color: #64758f;
-  font-size: 13px;
-}
-
-.question-hint strong {
-  color: #17233c;
-  font-size: 16px;
-}
-
-.answer-input :deep(.el-textarea__inner) {
-  min-height: 140px;
-  border-radius: 20px;
-  padding: 18px 20px;
-  font-size: 15px;
-  line-height: 1.8;
-  box-shadow: none;
-}
-
-.option-group {
-  display: grid;
-  gap: 14px;
-}
-
-.option-card {
-  width: 100%;
-  min-height: 72px;
-  margin: 0 !important;
-  padding: 0 18px;
-  border: 1px solid rgba(133, 158, 196, 0.22);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.92);
-  transition:
-    transform 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background-color 0.2s ease;
-}
-
-.option-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(33, 118, 255, 0.34);
-  box-shadow: 0 16px 22px rgba(33, 118, 255, 0.08);
-}
-
-.option-card :deep(.el-checkbox__input),
-.option-card :deep(.el-radio__input) {
-  display: none;
-}
-
-.option-card :deep(.el-checkbox__label),
-.option-card :deep(.el-radio__label) {
-  width: 100%;
-  padding-left: 0;
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  white-space: normal;
-  color: #24324b;
-}
-
-.option-card.is-checked {
-  border-color: #2176ff;
-  background: rgba(33, 118, 255, 0.08);
-  box-shadow: 0 16px 26px rgba(33, 118, 255, 0.12);
-}
-
-.option-card.is-checked :deep(.el-checkbox__label),
-.option-card.is-checked :deep(.el-radio__label) {
-  color: #1658c0;
-}
-
-.option-prefix {
-  flex: 0 0 auto;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: rgba(24, 40, 72, 0.06);
-  font-size: 13px;
-  font-weight: 800;
-  color: #17233c;
-}
-
-.option-card.is-checked .option-prefix {
-  background: #2176ff;
-  color: #ffffff;
-}
-
-.option-text {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  line-height: 1.75;
-}
-
-.action-bar {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: center;
-  padding: 18px 22px;
-  border-radius: 24px;
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), #ffffff);
-  border: 1px solid rgba(133, 158, 196, 0.15);
-}
-
-.action-buttons {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.submit-button.el-button {
-  min-width: 140px;
-  min-height: 48px;
-  border: none;
-  background: linear-gradient(135deg, #2176ff 0%, #0ea5e9 100%);
-  box-shadow: 0 16px 28px rgba(33, 118, 255, 0.2);
-}
-
-.submit-button.el-button:hover {
-  transform: translateY(-1px);
-}
-
-.next-button.el-button {
-  min-width: 124px;
-  min-height: 48px;
-  border-color: rgba(33, 118, 255, 0.22);
-  color: #1658c0;
-  background: rgba(33, 118, 255, 0.08);
-}
-
-.action-caption {
-  color: #6e7f99;
-  text-align: right;
-  line-height: 1.7;
-}
-
-.result-panel {
-  padding: 20px 22px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(133, 158, 196, 0.15);
-}
-
-.explanation-panel {
-  margin-top: 16px;
-  padding: 18px 20px;
-  border-radius: 18px;
-  background: #f8fbff;
-}
-
-.explanation-title {
-  color: #17233c;
-  font-weight: 700;
-}
-
-.explanation-panel p {
-  margin: 10px 0 0;
-  color: #5f6f89;
-  line-height: 1.8;
-}
-
-.empty-illustration {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 240px;
-  height: 180px;
-}
-
-.empty-orb {
-  position: absolute;
-  width: 160px;
-  height: 160px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(33, 118, 255, 0.2), transparent 66%);
-}
-
-.empty-card {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 10px;
-  width: 200px;
-  padding: 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(133, 158, 196, 0.16);
-  box-shadow: 0 18px 36px rgba(27, 49, 89, 0.08);
-}
-
-.empty-card strong {
-  color: #17233c;
-  font-size: 16px;
-}
-
-.empty-card span {
-  color: #667892;
-  line-height: 1.7;
+.question-container {
+  justify-content: flex-start;
 }
 
 .question-change-enter-active,
 .question-change-leave-active {
-  transition: all 0.25s ease;
-}
-
-.question-change-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
+  transition: all 0.25s ease-in-out;
 }
 
 .question-change-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateX(-30px);
 }
 
-@media (max-width: 980px) {
-  .quiz-topbar,
-  .question-head,
-  .meta-row,
-  .action-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.question-change-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
 
-  .bank-indicator,
-  .question-hint,
-  .topbar-actions {
-    min-width: 0;
-  }
+.card-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
 
-  .sync-tip,
-  .action-caption {
-    text-align: left;
-  }
+.card-header h3 {
+  margin: 0;
+  color: #303133;
+}
 
-  .question-card {
-    padding: 22px 18px;
-  }
+.option-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 12px;
+}
+
+.danxuan,
+.duoxuan {
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 15px;
+  margin: 0 !important;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  background-color: #fff;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.danxuan:hover,
+.duoxuan:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
+}
+
+.danxuan.is-checked,
+.duoxuan.is-checked {
+  border-color: #409eff;
+  background-color: #ecf5ff;
+}
+
+.danxuan :deep(.el-radio__input),
+.duoxuan :deep(.el-checkbox__input) {
+  display: none;
+}
+
+.danxuan :deep(.el-radio__label),
+.duoxuan :deep(.el-checkbox__label) {
+  padding-left: 0;
+  font-size: 15px;
+  color: #303133;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.danxuan.is-checked :deep(.el-radio__label),
+.duoxuan.is-checked :deep(.el-checkbox__label) {
+  color: #409eff;
+  font-weight: bold;
+}
+
+.button-group {
+  display: flex;
+  gap: 16px;
+}
+
+/* ... 您的按钮样式 ... */
+.submit-button.el-button {
+  background: transparent;
+  border: none;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.submit-button.el-button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(45deg, #6a82fb, #fc5c7d);
+  background-size: 200% 200%;
+  transition: background-position 0.5s ease;
+  z-index: 0;
+}
+
+.submit-button.el-button :deep(.el-icon),
+.submit-button.el-button :deep(span) {
+  position: relative;
+  z-index: 1;
+}
+
+.submit-button.el-button:not(.is-disabled):hover {
+  transform: translateY(-3px);
+  box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+}
+
+.submit-button.el-button:not(.is-disabled):hover::before {
+  background-position: right center;
+}
+
+.submit-button.el-button.is-disabled {
+  box-shadow: none;
+  background-color: #f5f7fa;
+  border-color: #e4e7ed;
+  color: #c0c4cc;
+}
+
+.submit-button.el-button.is-disabled::before {
+  background: none;
+}
+
+.next-button.el-button {
+  background-color: #fff;
+  color: #409eff;
+  border: 1px solid #409eff;
+  transition: all 0.3s ease;
+}
+
+.next-button.el-button:not(.is-disabled):hover {
+  background-color: #409eff;
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.next-button.el-button.is-disabled {
+  background-color: #f5f7fa;
+  border-color: #e4e7ed;
+  color: #c0c4cc;
+}
+
+.mode-switch{
+  height: 72px;
 }
 </style>
