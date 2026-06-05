@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-axios.defaults.baseURL = 'http://localhost:3002';
+axios.defaults.baseURL = 'http://localhost:13002';
 
 export function uploadFile(file, bankName) {
   const formData = new FormData();
@@ -22,11 +22,6 @@ export function getQuestion(bankName, order) {
 export function submitAnswer(id, userAnswer, bankName) {
   return axios.post('/answer', { id, userAnswer, bankName });
 }
-
-export function patternsP(bankName) {
-  return axios.get('/patterns', {  params: { bankName }  });
-}
-
 
 export function generatePaper(bankName, count) {
   return axios.get('/generate-paper', { params: { bankName, count } });

@@ -1,79 +1,110 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@import "tailwindcss";
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+/* ══════════════ Light Theme — 柔化低饱和 ══════════════ */
+@theme {
+  --color-background: #fafaf9;
+  --color-foreground: #2c2c2e;
+  --color-card: #ffffff;
+  --color-card-foreground: #2c2c2e;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #2c2c2e;
+  --color-primary: #4a7dbf;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f0f0ee;
+  --color-secondary-foreground: #2c2c2e;
+  --color-muted: #f0f0ee;
+  --color-muted-foreground: #8e8e93;
+  --color-accent: #f0f0ee;
+  --color-accent-foreground: #2c2c2e;
+  --color-destructive: #c2655a;
+  --color-destructive-foreground: #ffffff;
+  --color-success: #5d9b6a;
+  --color-success-foreground: #ffffff;
+  --color-warning: #b8954a;
+  --color-warning-foreground: #ffffff;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-input: rgba(0, 0, 0, 0.08);
+  --color-ring: rgba(74, 125, 191, 0.4);
+  --radius: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --font-sans: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+}
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+/* ══════════════ Dark Theme ══════════════ */
+.dark {
+  --color-background: #1c1c1e;
+  --color-foreground: #e5e5ea;
+  --color-card: #242426;
+  --color-card-foreground: #e5e5ea;
+  --color-popover: #242426;
+  --color-popover-foreground: #e5e5ea;
+  --color-primary: #6b9fd4;
+  --color-primary-foreground: #1c1c1e;
+  --color-secondary: #2c2c2e;
+  --color-secondary-foreground: #e5e5ea;
+  --color-muted: #2c2c2e;
+  --color-muted-foreground: #8e8e93;
+  --color-accent: #2c2c2e;
+  --color-accent-foreground: #e5e5ea;
+  --color-destructive: #d4786d;
+  --color-destructive-foreground: #1c1c1e;
+  --color-success: #6fa87a;
+  --color-success-foreground: #1c1c1e;
+  --color-warning: #c9a55c;
+  --color-warning-foreground: #1c1c1e;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-input: rgba(255, 255, 255, 0.08);
+  --color-ring: rgba(107, 159, 212, 0.4);
+}
+
+/* ══════════════ Base ══════════════ */
+body {
+  font-family: var(--font-sans);
+  background: transparent;
+  color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
+  text-rendering: optimizeLegibility;
   margin: 0;
-  display: flex;
-  /* place-items: center; */
-  min-width: 320px;
-  min-height: 100vh;
+  overflow: hidden;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* ══════════════ Scrollbar ══════════════ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.25); }
+::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.4); }
+
+/* ══════════════ vue-sonner Toast ══════════════ */
+[data-sonner-toaster] [data-sonner-toast] {
+  border-radius: 0 !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+[data-sonner-toaster] [data-close-button] {
+  border-radius: 0 !important;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+/* ══════════════ View Transition API 动画 ══════════════ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
-.card {
-  padding: 2em;
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
 }
 
-#app {
-  /* max-width: 1280px; */
-  margin: 0 auto;
-  /* padding: 2rem; */
-  text-align: center;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* 回退：简单过渡 */
+.dark body,
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
 }

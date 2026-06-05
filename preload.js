@@ -1,7 +1,13 @@
-// preload.js (在项目根目录)
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getHasSeenGuide: () => ipcRenderer.invoke('get-has-seen-guide'),
-  setHasSeenGuide: () => ipcRenderer.send('set-has-seen-guide')
+  setHasSeenGuide: () => ipcRenderer.send('set-has-seen-guide'),
+  minimizeWindow: () => ipcRenderer.send('window-minimize'),
+  maximizeWindow: () => ipcRenderer.send('window-maximize'),
+  closeWindow: () => ipcRenderer.send('window-close'),
+  isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowStateChanged: (callback) => {
+    ipcRenderer.on('window-state-changed', (_event, isMaximized) => callback(isMaximized));
+  },
 });

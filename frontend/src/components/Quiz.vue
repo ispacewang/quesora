@@ -1,630 +1,246 @@
 <template>
-  <el-card class="quiz-card">
-    <div class="card-header">
-      <h3>答题区</h3>
-      <el-switch
-        v-model="questionMod"
-        inline-prompt
-        class="mode-switch"
-        style="--el-switch-on-color: #13ce66; --el-switch-off-color: #409eff"
-        active-text="顺序答题"
-        inactive-text="随机答题"
-        @change="handleModeChange"
-      >
-      </el-switch>
-      <!-- 【新】添加 ref，以便在脚本中调用其方法 -->
+  <div class="flex flex-col min-h-full">
+    <!-- 题库选择栏 -->
+    <div class="px-5 py-3.5 border-b border-border">
       <BankSelector ref="bankSelectorRef" @bank-change="onBankChange" />
     </div>
 
-    <!-- 条件渲染的根容器 -->
-    <div class="main-content-area">
-      <!-- 加载状态 -->
-      <div v-if="loading" class="placeholder">
-        <el-skeleton :rows="5" animated />
-      </div>
+    <!-- 空状态 -->
+    <div v-if="!currentBank && !loading" class="flex-1 flex flex-col items-center justify-center py-16 px-5 text-muted-foreground">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" class="opacity-35 mb-3.5">
+        <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+      </svg>
+      <p class="text-sm">{{ emptyDescription }}</p>
+    </div>
 
-      <!-- 题目显示区域 -->
-      <div v-else-if="question" class="question-container">
-        <Transition name="question-change" mode="out-in">
-          <div :key="idx" class="question-wrapper">
-            <!-- ... 您原来的题目显示部分，无需改动 ... -->
-            <div style="margin-bottom: 16px">
-              <el-tag type="primary" style="margin-right: 8px">{{
-                question.type
-              }}</el-tag>
-              <el-tag
-                v-if="question.meta?.['题目分类']"
-                type="success"
-                style="margin-right: 8px"
-                >{{ question.meta["题目分类"] }}</el-tag
-              >
-              <el-tag v-if="question.meta?.['一级纲要']" type="warning">{{
-                question.meta["一级纲要"]
-              }}</el-tag>
-            </div>
-            <div
-              style="
-                margin-bottom: 24px;
-                text-align: left;
-                font-size: 1.1em;
-                line-height: 1.6;
-              "
-            >
-              {{ question.question }}
-            </div>
-            <el-input
-              v-if="isShortAnswer"
-              v-model="userAnswer"
-              type="textarea"
-              :rows="4"
-              placeholder="请输入你的答案"
-              style="margin-bottom: 16px"
-            />
-            <el-checkbox-group
-              v-else-if="isMultiChoice"
-              v-model="userAnswer"
-              class="option-group"
-            >
-              <el-checkbox
-                v-for="(opt, i) in question.options"
-                :key="i"
-                :label="String.fromCharCode(65 + i)"
-                class="duoxuan"
-              >
-                {{ String.fromCharCode(65 + i) + ". " + opt }}
-              </el-checkbox>
-            </el-checkbox-group>
-            <el-radio-group v-else v-model="userAnswer" class="option-group">
-              <el-radio
-                v-for="(opt, i) in question.options"
-                :key="i"
-                :label="isJudge ? opt : String.fromCharCode(65 + i)"
-                class="danxuan"
-              >
-                {{ isJudge ? opt : String.fromCharCode(65 + i) + ". " + opt }}
-              </el-radio>
-            </el-radio-group>
-            <!-- ... 您原来的题目显示部分结束 ... -->
+    <!-- 加载中 -->
+    <div v-else-if="loading" class="p-5 space-y-3">
+      <div class="h-3 w-[30%] bg-muted animate-pulse" />
+      <div class="h-3 w-full bg-muted animate-pulse" />
+      <div class="h-3 w-[80%] bg-muted animate-pulse" />
+      <div class="h-3 w-[55%] bg-muted animate-pulse" />
+      <div class="h-10 w-full bg-muted animate-pulse" />
+      <div class="h-10 w-full bg-muted animate-pulse" />
+    </div>
 
-            <div style="margin-top: 24px">
-              <div class="button-group">
-                <el-button
-                  class="submit-button"
-                  type="primary"
-                  size="large"
-                  round
-                  :icon="Check"
-                  @click="submit"
-                  :disabled="
-                    (isMultiChoice ? userAnswer.length === 0 : !userAnswer) ||
-                    submitted ||
-                    submitting
-                  "
-                  :loading="submitting"
-                >
-                  {{ submitting ? "判题中..." : "提交" }}
-                </el-button>
-                <!-- 【改】修改 v-if 条件，在错题库模式下答对或答错后都显示“下一题” -->
-                <el-button
-                  v-if="submitted && (resultType === 'error' || isMistakeMode)"
-                  class="next-button"
-                  size="large"
-                  round
-                  :icon="ArrowRight"
-                  @click="next"
-                >
-                  下一题
-                </el-button>
-              </div>
-            </div>
-
-            <!-- 【改】修改 v-if 条件，只要提交了就显示结果区域，而不仅是答错时 -->
-            <div v-if="submitted" style="margin-top: 24px; text-align: left">
-              <el-alert
-                :title="resultTitle"
-                :type="resultType"
-                :closable="false"
-                show-icon
-              />
-              <!-- 【改】增加 v-if，只有存在解析时才显示解析区域 -->
-              <div
-                v-if="explanation"
-                style="
-                  margin-top: 16px;
-                  padding: 16px;
-                  background-color: #f7f8fa;
-                  border-radius: 8px;
-                "
-              >
-                <strong style="color: #303133">【深度解析】</strong>
-                <p style="margin: 8px 0 0 0; color: #606266; line-height: 1.7">
-                  {{ explanation }}
-                </p>
-              </div>
-            </div>
+    <!-- 题目 -->
+    <div v-else-if="question" class="flex-1 flex flex-col">
+      <div class="px-7 py-6 max-w-[680px] mx-auto w-full">
+        <!-- 工具栏 -->
+        <div class="flex items-center justify-between pb-3.5 mb-4 border-b border-border">
+          <div class="flex items-center gap-2 flex-wrap">
+            <Badge variant="default">{{ question.type }}</Badge>
+            <Badge v-if="question.meta?.['题目分类']" variant="success">{{ question.meta['题目分类'] }}</Badge>
+            <Badge v-if="question.meta?.['一级纲要']" variant="warning">{{ question.meta['一级纲要'] }}</Badge>
           </div>
-        </Transition>
-      </div>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] font-medium" :class="!orderMode ? 'text-primary' : 'text-muted-foreground'">随机</span>
+              <label class="relative inline-block w-[34px] h-5 cursor-pointer">
+                <input type="checkbox" v-model="orderMode" @change="onModeChange" class="opacity-0 w-0 h-0" />
+                <span class="absolute inset-0 rounded-full transition-colors duration-300" :class="orderMode ? 'bg-primary' : 'bg-border'" />
+                <span class="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform duration-300" :class="orderMode ? 'left-[17px]' : 'left-[3px]'" />
+              </label>
+              <span class="text-[11px] font-medium" :class="orderMode ? 'text-primary' : 'text-muted-foreground'">顺序</span>
+            </div>
+            <Button size="xs" :variant="quickMode ? 'default' : 'outline'" @click="quickMode = !quickMode">⚡ 速刷</Button>
+          </div>
+        </div>
 
-      <!-- 空状态 -->
-      <div v-else class="placeholder">
-        <!-- 【改】动态显示空状态的描述文本 -->
-        <el-empty :description="emptyDescription" />
+        <!-- 题干 -->
+        <p class="text-base font-semibold leading-relaxed mb-5 text-foreground">{{ question.question }}</p>
+
+        <!-- 简答 -->
+        <Textarea v-if="isShortAnswer" v-model="userAnswer" :rows="4" placeholder="输入你的答案..." />
+
+        <!-- 多选 -->
+        <div v-else-if="isMultiChoice" class="flex flex-col gap-2 mb-5 border border-border p-px">
+          <div v-for="(opt, i) in question.options" :key="i"
+            class="flex items-start gap-2.5 px-3.5 py-2.5 border border-border cursor-pointer transition-all duration-200 hover:border-primary hover:bg-primary/5 hover:translate-x-0.5"
+            :class="{ 'border-primary bg-primary/5': userAnswer.includes(String.fromCharCode(65 + i)) }"
+            @click="toggleMultiOption(i)"
+          >
+            <span class="flex items-center justify-center w-6 h-6 border text-xs font-semibold flex-shrink-0 transition-colors"
+              :class="userAnswer.includes(String.fromCharCode(65 + i)) ? 'bg-primary border-primary text-primary-foreground' : 'border-border text-muted-foreground'"
+            >{{ String.fromCharCode(65 + i) }}</span>
+            <span class="text-sm leading-relaxed pt-0.5">{{ opt }}</span>
+          </div>
+        </div>
+
+        <!-- 单选/判断 -->
+        <div v-else class="flex flex-col gap-2 mb-5 border border-border p-px">
+          <div v-for="(opt, i) in question.options" :key="i"
+            class="flex items-start gap-2.5 px-3.5 py-2.5 border border-border cursor-pointer transition-all duration-200 hover:border-primary hover:bg-primary/5 hover:translate-x-0.5"
+            :class="{ 'border-primary bg-primary/5': userAnswer === String.fromCharCode(65 + i) }"
+            @click="userAnswer = String.fromCharCode(65 + i)"
+          >
+            <span class="flex items-center justify-center w-6 h-6 border text-xs font-semibold flex-shrink-0 transition-colors"
+              :class="userAnswer === String.fromCharCode(65 + i) ? 'bg-primary border-primary text-primary-foreground' : 'border-border text-muted-foreground'"
+            >{{ String.fromCharCode(65 + i) }}</span>
+            <span class="text-sm leading-relaxed pt-0.5">{{ opt }}</span>
+          </div>
+        </div>
+
+        <!-- 操作 -->
+        <div class="flex gap-2.5 pt-4 border-t border-border">
+          <Button variant="outline" size="sm" @click="submitAnswer" :disabled="!canSubmit">提交答案</Button>
+          <Button variant="ghost" size="sm" @click="quickNext">{{ quickMode ? '提交并继续 →' : '下一题 →' }}</Button>
+        </div>
+
+        <!-- 反馈 -->
+        <div v-if="showResult" class="mt-4 space-y-3.5">
+          <div class="flex items-center gap-2 px-3.5 py-2.5 text-sm font-medium border-l-[3px]"
+            :class="lastResult?.correct
+              ? 'bg-success/10 border-success text-success'
+              : 'bg-destructive/10 border-destructive text-destructive'"
+          >
+            <span class="text-sm font-bold">{{ lastResult?.correct ? '✓' : '✗' }}</span>
+            <span>{{ lastResult?.correct ? '回答正确！' : '回答错误' }}</span>
+            <span v-if="isMistakeBook && lastResult?.correct" class="text-success text-xs">（已移出错题库）</span>
+          </div>
+          <div v-if="lastResult?.explanation" class="p-3.5 bg-muted border-l-2 border-primary">
+            <span class="text-[10px] font-semibold text-primary uppercase tracking-wider block mb-1">解析</span>
+            <p class="text-xs leading-relaxed text-muted-foreground m-0">{{ lastResult.explanation }}</p>
+          </div>
+        </div>
       </div>
     </div>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
-// --- Script 部分，在您原有代码基础上进行修改 ---
-import { ref, computed } from "vue";
-import { getQuestion, submitAnswer } from "../api";
-import BankSelector from "./BankSelector.vue";
-import { Check, ArrowRight } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
+import { ref, computed } from 'vue'
+import { toast } from 'vue-sonner'
+import Badge from './ui/Badge.vue'
+import Button from './ui/Button.vue'
+import Textarea from './ui/Textarea.vue'
+import BankSelector from './BankSelector.vue'
+import * as api from '../api'
+import { getMistakeBook, removeQuestionFromMistakeBook, MISTAKE_BOOK_ID } from '../utils/mistakeBook'
 
-// 【新】引入错题库工具和常量
-import {
-  MISTAKE_BOOK_ID,
-  getMistakeBook,
-  addQuestionToMistakeBook,
-  removeQuestionFromMistakeBook,
-} from "../utils/mistakeBook";
+const bankSelectorRef = ref(null)
+const currentBank = ref('')
+const question = ref(null)
+const userAnswer = ref('')
+const orderMode = ref(false)
+const quickMode = ref(false)
+const loading = ref(false)
+const showResult = ref(false)
+const lastResult = ref(null)
+const lastMistakeIdx = ref(0)
 
-// 【新】创建对 BankSelector 组件的引用
-const bankSelectorRef = ref(null);
+const emit = defineEmits(['answer-submitted', 'bank-changed'])
 
-const questionMod = ref(true); 
+const canSubmit = computed(() => !!userAnswer.value && !showResult.value)
+const isShortAnswer = computed(() => question.value?.type === '简答题')
+const isMultiChoice = computed(() => question.value?.type === '多选题')
+const isMistakeBook = computed(() => currentBank.value === MISTAKE_BOOK_ID)
 
-// --- 您的原有状态，保持不变 ---
-const question = ref(null);
-const idx = ref(null);
-const userAnswer = ref("");
-const submitted = ref(false);
-const resultTitle = ref("");
-const resultType = ref("info");
-const explanation = ref("");
-const loading = ref(false);
-const submitting = ref(false);
-const currentBank = ref("");
-
-// --- 您的原有计算属性，稍作补充 ---
-const isJudge = computed(() => {
-  if (!question.value?.options) return false;
-  const opts = question.value.options.map((o) => o.trim());
-  return (
-    opts.length === 2 &&
-    ((opts[0] === "正确" && opts[1] === "错误") ||
-      (opts[0] === "对" && opts[1] === "错"))
-  );
-});
-const isShortAnswer = computed(() => question.value?.type === "简答题");
-const isMultiChoice = computed(() => question.value?.type === "多选题");
-
-// 【新】增加一个计算属性，判断当前是否是错题库模式
-const isMistakeMode = computed(() => currentBank.value === MISTAKE_BOOK_ID);
-
-const emit = defineEmits(["answer-submitted", "bank-changed"]);
-
-// 【新】动态计算空状态的描述
 const emptyDescription = computed(() => {
-  if (isMistakeMode.value) {
-    return "恭喜！错题库已清空，继续加油！";
-  }
-  return "请先选择一个题库开始答题";
-});
+  if (!currentBank.value) return '选择一个题库开始答题'
+  if (isMistakeBook.value) return '错题库为空'
+  return '题库为空'
+})
 
-// 【新增】处理切换模式的事件
+const onBankChange = async (bankId) => {
+  currentBank.value = bankId
+  emit('bank-changed')
+  if (!bankId) { question.value = null; return }
+  lastMistakeIdx.value = 0
+  await loadQuestion()
+}
 
-const handleModeChange = (e) => {
-  console.log("切换模式:", e);
-  // 切换模式后，我们应该从头开始获取题目，以避免逻辑混乱
-  // 比如从随机模式切换到顺序模式，应该从第一题开始
-  loadQuestion(e); 
-};
-
-// 【改】重构 loadQuestion 方法，以支持两种模式
-// 在 Quiz.vue 中，修改 loadQuestion 函数
-const loadQuestion = async (isReset) => {
-  if (!currentBank.value) return;
-  loading.value = true;
-
-  // --- 在这里提前重置所有状态 ---
-  submitted.value = false;
-  resultTitle.value = "";
-  explanation.value = "";
-  question.value = null; // 先清空题目
-  idx.value = null; // 【核心修正】提前重置 idx
-  userAnswer.value = ""; // 提前重置答案
-  // --------------------------------
-
-  if (isMistakeMode.value) {
-    loadFromMistakeBook();
-  } else {
-    await loadFromApi(isReset);
-  }
-
-  // 如果是多选题，在加载成功后再特殊处理 userAnswer
-  if (question.value && isMultiChoice.value) {
-    userAnswer.value = [];
-  }
-
-  loading.value = false;
-};
-
-// 【新】从本地错题库加载题目的逻辑
-const loadFromMistakeBook = () => {
-  const book = getMistakeBook();
-  if (book.length > 0) {
-    const randomIndex = Math.floor(Math.random() * book.length);
-    const mistakeQuestion = book[randomIndex];
-    question.value = mistakeQuestion;
-    idx.value = mistakeQuestion.idx;
-    userAnswer.value = isMultiChoice.value ? [] : "";
-  } else {
-    question.value = null; // 标志错题库已空
-    ElMessage.success("太棒了！所有错题都已掌握！");
-    bankSelectorRef.value?.refreshBanks(); // 刷新题库列表，让错题库卡片消失
-  }
-};
-
-// 【新】从API加载题目的逻辑（从您原有的 loadQuestion 中提取）
-// 在 Quiz.vue 中，修改 loadFromApi 函数
-
-const loadFromApi = async (order) => {
+const loadQuestion = async () => {
+  if (!currentBank.value) return
+  loading.value = true
   try {
-    const res = await getQuestion(currentBank.value, order);
-    const apiData = res.data; // 先将后端数据存入临时变量
-    // 1. 设置独立的 idx 状态，这部分逻辑是正确的，保持不变
-    idx.value = apiData.id;
-    // 2. 创建 question.value 对象时，手动将 id 赋值给 idx 属性
-    question.value = {
-      ...apiData, // 展开所有从后端获取的属性 (question, options, type, id, meta等)
-      idx: apiData.id, // 额外添加或覆盖一个 idx 属性，使其与 id 的值相同
-    };
-    // --- 修改结束 ---
-    // 后续逻辑保持不变
-    userAnswer.value = isMultiChoice.value ? [] : "";
-    console.log("题目加载成功，ID (idx):", idx.value); // 日志可以改得更清晰
-  } catch (e) {
-    console.error("加载题目失败:", e);
-    question.value = null;
-    idx.value = null;
-    userAnswer.value = "";
-    ElMessage.error("加载题目失败！请检查网络或刷新页面。");
-  }
-};
-
-// 【改】重构 submit 方法，以支持两种判题模式
-const submit = async () => {
-  // 在这里添加日志打印
-  if (
-    (isMultiChoice.value ? userAnswer.value.length === 0 : !userAnswer.value) ||
-    submitting.value
-  )
-    return;
-  submitting.value = true;
-
-  if (isMistakeMode.value) {
-    submitInMistakeMode();
-  } else {
-    console.log("questionMod.value:", questionMod.value);
-    await submitToApi(questionMod.value);
-  }
-
-  submitting.value = false;
-};
-
-const submitInMistakeMode = () => {
-  // 错题库中的题目对象必须包含 answer 和 explanation 字段
-  const correctAnswer = question.value.answer;
-  const isCorrect =
-    formatAnswer(userAnswer.value) === formatAnswer(correctAnswer);
-  // 【核心修正】无论对错，都先准备好要 emit 的完整数据
-  const questionDataForEmit = {
-    ...question.value, // 包含原始问题、选项、类型、idx等
-    correctAnswer: formatAnswer(correctAnswer),
-    userAnswer: formatAnswer(userAnswer.value),
-    explanation: question.value.explanation,
-  };
-  submitted.value = true;
-  if (isCorrect) {
-    resultType.value = "success";
-    resultTitle.value = "回答正确！该题已掌握";
-    explanation.value = question.value.explanation;
-    ElMessage.success("回答正确！已从错题库移除。");
-    removeQuestionFromMistakeBook(question.value.idx);
-    bankSelectorRef.value?.refreshBanks(); // 实时更新题库卡片
-    // 【修改】发送结构统一的数据
-    emit("answer-submitted", {
-      isCorrect: true,
-      questionData: questionDataForEmit,
-    });
-  } else {
-    resultType.value = "error";
-    resultTitle.value = `回答错误，正确答案：${formatAnswer(correctAnswer)}`;
-    explanation.value = question.value.explanation;
-    // 【修改】发送结构统一的数据
-    emit("answer-submitted", {
-      isCorrect: false,
-      questionData: questionDataForEmit,
-    });
-  }
-};
-
-// 【新】提交到API进行判题（从您原有的 submit 中提取）
-// 在 Quiz.vue 中
-const submitToApi = async () => {
-  // 【新增】安全检查：如果题目 ID 不存在，则阻止提交并提示
-
-  try {
-    const res = await submitAnswer(
-      idx.value,
-      userAnswer.value,
-      currentBank.value
-    );
-    const { correct, answer, explanation: exp } = res.data;
-
-    // 【核心修改】将 questionData 的构建逻辑提前，确保 emit 时总能使用
-    const questionDataForEmit = {
-      ...question.value,
-      correctAnswer: formatAnswer(answer),
-      userAnswer: formatAnswer(userAnswer.value),
-      explanation: exp,
-      options: question.value.options, // 保留选项信息
-    };
-
-    if (correct) {
-      // 【修改】答对时，也发送完整的 questionData
-      emit("answer-submitted", {
-        isCorrect: true,
-        questionData: questionDataForEmit,
-      });
-
-      ElMessage({ message: "回答正确！", type: "success", duration: 1000 });
-      setTimeout(() => {
-        console.log("questionMod.value:", questionMod.value);
-        next();
-      }, 1000);
+    if (isMistakeBook.value) {
+      const book = getMistakeBook()
+      if (book.length === 0) {
+        question.value = null
+        loading.value = false
+        return
+      }
+      let q
+      if (orderMode.value) {
+        if (lastMistakeIdx.value >= book.length) lastMistakeIdx.value = 0
+        q = book[lastMistakeIdx.value]
+        lastMistakeIdx.value++
+      } else {
+        const idx = Math.floor(Math.random() * book.length)
+        q = book[idx]
+      }
+      question.value = { ...q, id: q.questionId }
     } else {
-      submitted.value = true;
-      resultTitle.value = `回答错误，正确答案：${formatAnswer(answer)}`;
-      resultType.value = "error";
-      explanation.value = exp;
-
-      // 【核心】将错题加入错题库
-      const fullQuestionData = { ...question.value, answer, explanation: exp };
-      addQuestionToMistakeBook(fullQuestionData);
-      bankSelectorRef.value?.refreshBanks(); // 实时更新题库卡片
-
-      // 【修改】现在这里的 emit 和答对时的结构完全一致
-      emit("answer-submitted", {
-        isCorrect: false,
-        questionData: questionDataForEmit,
-      });
+      const res = await api.getQuestion(currentBank.value, orderMode.value)
+      question.value = res.data
     }
+    userAnswer.value = ''
+    showResult.value = false
+    lastResult.value = null
   } catch (e) {
-    // 现在的 catch 块更有可能是真正的网络或服务器问题
-    console.error("判题服务API调用失败:", e); // 在控制台打印详细错误，方便调试
-    ElMessage.error("判题服务异常，请检查网络或联系管理员！");
+    toast.error(e.response?.data?.error || '加载失败')
+    question.value = null
+  } finally {
+    loading.value = false
   }
-};
+}
 
-// 在 Quiz.vue 的 <script setup> 中，替换掉旧的 formatAnswer
+const onModeChange = () => { loadQuestion() }
 
-const formatAnswer = (ans) => {
-  if (!ans) return "";
-  let chars;
-  if (Array.isArray(ans)) {
-    // 如果是数组 ['A', 'B', 'D']
-    chars = ans.map(String);
-  } else {
-    // 如果是字符串 "ABD" 或 "A,B,D"，先去掉逗号再拆成字符数组
-    chars = String(ans).replace(/,/g, "").split("");
+const toggleMultiOption = (i) => {
+  if (showResult.value) return
+  const l = String.fromCharCode(65 + i)
+  if (!Array.isArray(userAnswer.value)) userAnswer.value = []
+  const a = [...userAnswer.value]
+  const p = a.indexOf(l)
+  p === -1 ? a.push(l) : a.splice(p, 1)
+  userAnswer.value = a
+}
+
+const checkLocalAnswer = (q, ua) => {
+  const answer = q.correctAnswer || q.answer || ''
+  if (q.type === '多选题') {
+    const std = answer.replace(/,/g, '').split('').map(s => s.trim().toUpperCase()).filter(Boolean).sort()
+    const usr = (Array.isArray(ua) ? ua : [ua]).map(s => String(s).trim().toUpperCase()).filter(Boolean).sort()
+    return JSON.stringify(std) === JSON.stringify(usr)
   }
-  // 统一排序并连接成字符串
-  return chars.sort().join("");
-};
+  return answer.trim().toUpperCase() === String(ua || '').trim().toUpperCase()
+}
 
-const next = () => {
-  // 【改】在切换下一题前重置提交状态，确保按钮可用
-  submitting.value = false;
-  loadQuestion(questionMod.value);
-};
-const resetQuestion = () => {
-  loadQuestion();
-};
-const onBankChange = (bank) => {
-  currentBank.value = bank;
-  emit("bank-changed", bank);
-  if (bank) {
-    loadQuestion();
-  } else {
-    question.value = null;
-  }
-};
+const submitAnswer = async () => {
+  if (!canSubmit.value) return
+  const q = question.value
+  try {
+    let correct, answer, explanation
+    if (isMistakeBook.value) {
+      correct = checkLocalAnswer(q, userAnswer.value)
+      answer = q.correctAnswer || q.answer
+      explanation = q.explanation
+    } else {
+      const res = await api.submitAnswer(q.id, userAnswer.value, currentBank.value)
+      correct = res.data?.correct
+      answer = res.data?.answer
+      explanation = res.data?.explanation
+    }
+    lastResult.value = { correct, explanation, correctAnswer: answer,
+      questionData: { ...q, questionId: q.questionId || q.id, userAnswer: userAnswer.value, correctAnswer: answer, explanation },
+    }
+    showResult.value = true
+    emit('answer-submitted', { isCorrect: correct, questionData: lastResult.value.questionData })
+    if (isMistakeBook.value && correct) {
+      removeQuestionFromMistakeBook(q.questionId)
+      bankSelectorRef.value?.refreshBanks()
+    }
+  } catch { toast.error('提交失败') }
+}
 
-defineExpose({ resetQuestion });
+const nextQuestion = () => { loadQuestion() }
+
+const quickNext = async () => {
+  if (quickMode.value && canSubmit.value) { await submitAnswer() }
+  loadQuestion()
+}
+
+defineExpose({ refreshBanks: () => bankSelectorRef.value?.refreshBanks() })
 </script>
-
-<style scoped>
-/* 您的所有样式都无需改动 */
-.quiz-card {
-  /* width: 600px; */
-  border-radius: 16px;
-  padding: 16px 24px;
-}
-
-.main-content-area,
-.placeholder,
-.question-container {
-  min-height: 400px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.question-container {
-  justify-content: flex-start;
-}
-
-.question-change-enter-active,
-.question-change-leave-active {
-  transition: all 0.25s ease-in-out;
-}
-
-.question-change-leave-to {
-  opacity: 0;
-  transform: translateX(-30px);
-}
-
-.question-change-enter-from {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-.card-header {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.card-header h3 {
-  margin: 0;
-  color: #303133;
-}
-
-.option-group {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 12px;
-}
-
-.danxuan,
-.duoxuan {
-  width: 100%;
-  min-height: 44px;
-  padding: 12px 15px;
-  margin: 0 !important;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background-color: #fff;
-  box-sizing: border-box;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-}
-
-.danxuan:hover,
-.duoxuan:hover {
-  border-color: #409eff;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
-}
-
-.danxuan.is-checked,
-.duoxuan.is-checked {
-  border-color: #409eff;
-  background-color: #ecf5ff;
-}
-
-.danxuan :deep(.el-radio__input),
-.duoxuan :deep(.el-checkbox__input) {
-  display: none;
-}
-
-.danxuan :deep(.el-radio__label),
-.duoxuan :deep(.el-checkbox__label) {
-  padding-left: 0;
-  font-size: 15px;
-  color: #303133;
-  white-space: normal;
-  line-height: 1.5;
-}
-
-.danxuan.is-checked :deep(.el-radio__label),
-.duoxuan.is-checked :deep(.el-checkbox__label) {
-  color: #409eff;
-  font-weight: bold;
-}
-
-.button-group {
-  display: flex;
-  gap: 16px;
-}
-
-/* ... 您的按钮样式 ... */
-.submit-button.el-button {
-  background: transparent;
-  border: none;
-  color: #fff;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.submit-button.el-button::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, #6a82fb, #fc5c7d);
-  background-size: 200% 200%;
-  transition: background-position 0.5s ease;
-  z-index: 0;
-}
-
-.submit-button.el-button :deep(.el-icon),
-.submit-button.el-button :deep(span) {
-  position: relative;
-  z-index: 1;
-}
-
-.submit-button.el-button:not(.is-disabled):hover {
-  transform: translateY(-3px);
-  box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
-}
-
-.submit-button.el-button:not(.is-disabled):hover::before {
-  background-position: right center;
-}
-
-.submit-button.el-button.is-disabled {
-  box-shadow: none;
-  background-color: #f5f7fa;
-  border-color: #e4e7ed;
-  color: #c0c4cc;
-}
-
-.submit-button.el-button.is-disabled::before {
-  background: none;
-}
-
-.next-button.el-button {
-  background-color: #fff;
-  color: #409eff;
-  border: 1px solid #409eff;
-  transition: all 0.3s ease;
-}
-
-.next-button.el-button:not(.is-disabled):hover {
-  background-color: #409eff;
-  color: #fff;
-  transform: translateY(-2px);
-}
-
-.next-button.el-button.is-disabled {
-  background-color: #f5f7fa;
-  border-color: #e4e7ed;
-  color: #c0c4cc;
-}
-
-.mode-switch{
-  height: 72px;
-}
-</style>

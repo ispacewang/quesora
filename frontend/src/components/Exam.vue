@@ -1,671 +1,310 @@
 <template>
-  <el-card class="exam-card">
-    <div class="exam-body">
-      <!-- 左侧：答题卡 -->
+  <div class="w-full">
+    <!-- ===== 加载状态 ===== -->
+    <div v-if="!examStarted && !submitted" class="max-w-[500px] mx-auto my-16 py-8 text-center">
+      <div class="h-3 w-[35%] bg-muted rounded animate-pulse mx-auto mb-3.5" />
+      <div class="h-3 w-full bg-muted rounded animate-pulse mx-auto mb-2.5" />
+      <div class="h-3 w-[75%] bg-muted rounded animate-pulse mx-auto mb-2.5" />
+      <p class="text-muted-foreground mt-4 text-sm">正在生成试卷…</p>
+    </div>
 
-      <div class="left-panel">
-        <div class="card-grid">
-          <!-- 关键改动：将 :key 移到 <template> 标签上 -->
-
-          <!-- 每个循环项（无论是标题还是卡片）都属于一个由 idx 标识的片段 -->
-
-          <template v-for="(ans, idx) in answers" :key="idx">
-            <!-- 在第1题前显示“单选题”标题 -->
-            <div v-if="idx === 0" class="card-title">单选题 (1-40)</div>
-            <!-- 在第41题前显示“多选题”标题 -->
-            <div v-if="idx === 40" class="card-title">多选题 (41-70)</div>
-
-            <!-- 在第71题前显示“判断题”标题 -->
-            <div v-if="idx === 70" class="card-title">
-              判断题 (71-{{ answers.length }})
-            </div>
-            <!-- 题号卡片不再需要独立的 key -->
-            <div
-              class="card-item"
-              :class="{
-                current: idx === currentIdx,
-                answered: ans !== null,
-                marked: markedSet.has(idx),
-                correct: submitted && correctSet.has(idx),
-                wrong: submitted && wrongSet.has(idx),
-              }"
-              @click="goTo(idx)"
-            >
-              {{ idx + 1 }}
-              <span v-if="markedSet.has(idx)" class="mark-indicator">🚩</span>
-            </div>
-          </template>
+    <!-- ===== 考试中 ===== -->
+    <template v-else-if="examStarted">
+      <!-- 信息栏 -->
+      <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/50">
+        <div class="flex items-center flex-wrap gap-1.5">
+          <span class="inline-flex items-center gap-1.5">
+            <span class="text-xs text-muted-foreground font-medium">题库</span>
+            <span class="text-sm font-semibold">{{ examInfo.bank }}</span>
+          </span>
+          <span class="w-px h-3.5 bg-border mx-1" />
+          <span class="inline-flex items-center gap-1.5">
+            <span class="text-xs text-muted-foreground font-medium">时长</span>
+            <span class="text-sm font-semibold">{{ examInfo.duration }}分钟</span>
+          </span>
+          <span class="w-px h-3.5 bg-border mx-1" />
+          <span class="inline-flex items-center gap-1.5">
+            <span class="text-xs text-muted-foreground font-medium">进度</span>
+            <span class="text-sm font-semibold">{{ currentIdx + 1 }}/{{ questions.length }}</span>
+          </span>
+          <span class="w-px h-3.5 bg-border mx-1" />
+          <span class="inline-flex items-center gap-1.5">
+            <span class="text-xs text-muted-foreground font-medium">剩余</span>
+            <span class="text-sm font-semibold text-destructive tabular-nums">{{ timeStr }}</span>
+          </span>
         </div>
+        <Button variant="destructive" size="sm" @click="onExitExam">退出考试</Button>
       </div>
-      <!-- 中间：题目内容和答题区 -->
-      <div class="main-panel">
-        <div class="exam-info">
-          <b>题库：</b>{{ examInfo.bank }}
-          <span style="margin-left: 24px"
-            ><b>时长：</b>{{ examInfo.duration }}分钟</span
-          >
-          <span style="margin-left: 24px"
-            ><b>当前题：</b>{{ currentIdx + 1 }}/{{ questions.length }}</span
-          >
-          <span v-if="examStarted" style="margin-left: 24px; color: #f56c6c"
-            ><b>剩余时间：</b>{{ timeStr }}</span
-          >
-          <el-button
-            v-if="examStarted && !submitted"
-            type="warning"
-            size="small"
-            style="float: right"
-            @click="onExitExam"
-            >退出考试</el-button
-          >
-        </div>
-        <div v-if="examStarted && questions.length">
-          <div class="question-panel">
-            <!-- START: 修改题目头部，增加标记按钮 -->
-            <div class="question-title">
-              <div>
-                <span class="q-idx">第{{ currentIdx + 1 }}题</span>
-                <span class="q-type">（{{ questions[currentIdx].type }}）</span>
-              </div>
-              <el-button
-                :type="markedSet.has(currentIdx) ? 'warning' : 'default'"
-                plain
-                size="small"
-                @click="toggleMark"
-              >
-                {{ markedSet.has(currentIdx) ? "取消标记" : "标记此题" }}
-              </el-button>
-            </div>
-            <!-- END: 修改题目头部 -->
-            <div style="margin-bottom: 16px">
-              <el-tag type="primary" style="margin-right: 8px">{{
-                questions[currentIdx].type
-              }}</el-tag>
-              <el-tag
-                v-if="
-                  questions[currentIdx].meta &&
-                  questions[currentIdx].meta['题目分类']
-                "
-                type="success"
-                style="margin-right: 8px"
-                >{{ questions[currentIdx].meta["题目分类"] }}</el-tag
-              >
-              <el-tag
-                v-if="
-                  questions[currentIdx].meta &&
-                  questions[currentIdx].meta['一级纲要']
-                "
-                type="warning"
-                >{{ questions[currentIdx].meta["一级纲要"] }}</el-tag
-              >
-            </div>
-            <div
-              style="
-                margin-bottom: 24px;
-                text-align: left;
-                font-size: 1.1em;
-                line-height: 1.6;
-              "
-            >
-              {{ questions[currentIdx].question }}
-            </div>
-            <el-input
-              v-if="questions[currentIdx].type === '简答题'"
-              v-model="answers[currentIdx]"
-              type="textarea"
-              :rows="4"
-              placeholder="请输入你的答案"
-              style="margin-bottom: 16px"
-            />
-            <div
-              v-else-if="questions[currentIdx].type === '多选题'"
-              class="option-group row-options"
-            >
+
+      <!-- 三栏布局 -->
+      <div class="grid" style="grid-template-columns: 180px 1fr 300px; min-height: calc(100vh - 130px);">
+        <!-- 左栏：答题卡 -->
+        <div class="p-3.5 overflow-y-auto border-r border-border">
+          <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3.5 pb-2.5 border-b border-border">答题卡</div>
+          <div class="grid grid-cols-4 gap-1">
+            <template v-for="(ans, qi) in answers" :key="qi">
+              <div v-if="qi === 0" class="col-span-4 text-[10px] font-semibold text-muted-foreground mt-3 pb-1 border-b border-border first:mt-0">单选</div>
+              <div v-if="qi === 40" class="col-span-4 text-[10px] font-semibold text-muted-foreground mt-3 pb-1 border-b border-border">多选</div>
+              <div v-if="qi === 70" class="col-span-4 text-[10px] font-semibold text-muted-foreground mt-3 pb-1 border-b border-border">判断</div>
               <div
-                v-for="(opt, i) in questions[currentIdx].options"
-                :key="i"
-                class="row-option-item"
+                class="flex items-center justify-center w-[28px] h-[28px] text-[11px] font-medium cursor-pointer border rounded transition-all duration-150"
                 :class="{
-                  'is-checked':
-                    answers[currentIdx] &&
-                    answers[currentIdx].includes(String.fromCharCode(65 + i)),
+                  'bg-primary text-primary-foreground border-primary font-bold': qi === currentIdx,
+                  'bg-success/10 text-success border-success/25': qi !== currentIdx && ans !== null,
+                  'border-warning ring-1 ring-warning': markedSet.has(qi),
+                  'border-border text-muted-foreground': qi !== currentIdx && ans === null && !markedSet.has(qi),
                 }"
-                @click="toggleMultiOption(i)"
-              >
-                <span class="option-label"
-                  >{{ String.fromCharCode(65 + i) }}.</span
-                >
-                {{ opt }}
-              </div>
-            </div>
-            <el-radio-group
-              v-else
-              v-model="answers[currentIdx]"
-              class="option-group row-options"
-            >
-              <el-radio
-                v-for="(opt, i) in questions[currentIdx].options"
-                :key="i"
-                :label="String.fromCharCode(65 + i)"
-                class="danxuan column-option-item"
-              >
-                <span class="option-label"
-                  >{{ String.fromCharCode(65 + i) }}.</span
-                >
-                {{ opt }}
-              </el-radio>
-            </el-radio-group>
-            <div class="question-actions" style="margin-top: 24px">
-              <el-button @click="prev" :disabled="currentIdx === 0"
-                >上一题</el-button
-              >
-              <el-button
-                @click="next"
-                :disabled="currentIdx === questions.length - 1"
-                >下一题</el-button
-              >
-              <el-button
-                type="danger"
-                @click="onSubmitExam"
-                :disabled="submitted"
-                >交卷</el-button
-              >
-            </div>
-            <div v-if="submitted" style="margin-top: 24px; text-align: left">
-              <el-alert
-                :title="'请查看得分与错题'"
-                type="info"
-                :closable="false"
-                show-icon
-              />
-            </div>
+                @click="goTo(qi)"
+              >{{ qi + 1 }}</div>
+            </template>
           </div>
         </div>
-        <div v-else-if="submitted">
-          <el-result icon="success" title="考试结束">
-            <template #sub-title>
-              <div
-                style="
-                  font-size: 38px;
-                  font-weight: bold;
-                  color: #409eff;
-                  letter-spacing: 2px;
-                  text-shadow: 2px 4px 12px #b3d8ff;
-                  margin-bottom: 10px;
-                "
-              >
-                得分：{{ score }} / {{ questions.length }}
-              </div>
-            </template>
-            <template #extra>
-              <div v-if="wrongSet.size">
-                <div
-                  v-for="idx in Array.from(wrongSet)"
-                  :key="idx"
-                  class="wrong-detail"
-                >
-                  <div style="margin-bottom: 2px">
-                    <b style="color: #f56c6c">第{{ idx + 1 }}题：</b
-                    >{{ questions[idx].question }}
-                  </div>
-                  <div style="margin-bottom: 2px">
-                    <ul class="wrong-options">
-                      <li
-                        v-for="(opt, i) in questions[idx].options"
-                        :key="i"
-                        :class="{
-                          'correct-answer': wrongDetails[idx]
-                            ? wrongDetails[idx].answer.includes(
-                                String.fromCharCode(65 + i)
-                              )
-                            : false,
-                        }"
-                      >
-                        {{ String.fromCharCode(65 + i) }}. {{ opt }}
-                      </li>
-                    </ul>
-                  </div>
-                  <div style="margin-bottom: 2px">
-                    <span style="color: #909399">你的答案：</span>
-                    <span style="color: #f56c6c; font-weight: bold">{{
-                      formatUserAnswer(answers[idx], questions[idx])
-                    }}</span>
-                  </div>
-                  <div style="margin-bottom: 2px">
-                    <span style="color: #67c23a">正确答案：</span>
-                    <span style="color: #67c23a; font-weight: bold">{{
-                      wrongDetails[idx] ? wrongDetails[idx].answer : "未知"
-                    }}</span>
-                  </div>
-                  <div
-                    v-if="wrongDetails[idx] && wrongDetails[idx].explanation"
-                    style="color: #409eff; margin-bottom: 8px; text-align: left"
-                  >
-                    解析：{{ wrongDetails[idx].explanation }}
-                  </div>
-                  <el-divider style="margin: 8px 0" />
-                </div>
-              </div>
-              <div v-else>全部答对！</div>
-              <el-button
-                type="primary"
-                size="large"
-                style="margin-top: 28px; font-size: 20px"
-                @click="onExitExam"
-                >退出考试</el-button
-              >
-            </template>
-          </el-result>
+
+        <!-- 中间：题目 -->
+        <div class="px-8 py-7 max-w-[740px] w-full mx-auto overflow-y-auto">
+          <!-- 题头 -->
+          <div class="flex justify-between items-center pb-3.5 mb-4 border-b border-border">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-base font-bold text-primary">第 {{ currentIdx + 1 }} 题</span>
+              <Badge variant="default">{{ questions[currentIdx].type }}</Badge>
+              <Badge v-if="questions[currentIdx].meta?.['题目分类']" variant="success">{{ questions[currentIdx].meta['题目分类'] }}</Badge>
+              <Badge v-if="questions[currentIdx].meta?.['一级纲要']" variant="warning">{{ questions[currentIdx].meta['一级纲要'] }}</Badge>
+            </div>
+            <Button variant="ghost" size="sm" @click="toggleMark">
+              {{ markedSet.has(currentIdx) ? '★ 已标记' : '☆ 标记' }}
+            </Button>
+          </div>
+
+          <!-- 题干 -->
+          <p class="text-base font-semibold leading-relaxed mb-5">{{ questions[currentIdx].question }}</p>
+
+          <!-- 简答 -->
+          <Textarea v-if="questions[currentIdx].type === '简答题'" v-model="answers[currentIdx]" :rows="4" placeholder="输入答案..." />
+
+          <!-- 多选 -->
+          <div v-else-if="questions[currentIdx].type === '多选题'" class="flex flex-col gap-2 mb-5 border border-border rounded-lg p-px">
+            <div v-for="(opt, i) in questions[currentIdx].options" :key="i"
+              class="flex items-start gap-2.5 px-3.5 py-2.5 border border-border rounded-md cursor-pointer transition-all duration-200 hover:border-primary hover:bg-primary/5 hover:translate-x-0.5"
+              :class="{ 'border-primary bg-primary/5': answers[currentIdx]?.includes(String.fromCharCode(65 + i)) }"
+              @click="toggleMultiOption(i)"
+            >
+              <span class="flex items-center justify-center w-6 h-6 border rounded text-xs font-semibold flex-shrink-0 transition-colors"
+                :class="answers[currentIdx]?.includes(String.fromCharCode(65 + i)) ? 'bg-primary border-primary text-primary-foreground' : 'border-border text-muted-foreground'"
+              >{{ String.fromCharCode(65 + i) }}</span>
+              <span class="text-sm leading-relaxed pt-0.5">{{ opt }}</span>
+            </div>
+          </div>
+
+          <!-- 单选/判断 -->
+          <div v-else class="flex flex-col gap-2 mb-5 border border-border rounded-lg p-px">
+            <div v-for="(opt, i) in questions[currentIdx].options" :key="i"
+              class="flex items-start gap-2.5 px-3.5 py-2.5 border border-border rounded-md cursor-pointer transition-all duration-200 hover:border-primary hover:bg-primary/5 hover:translate-x-0.5"
+              :class="{ 'border-primary bg-primary/5': answers[currentIdx] === String.fromCharCode(65 + i) }"
+              @click="answers[currentIdx] = String.fromCharCode(65 + i)"
+            >
+              <span class="flex items-center justify-center w-6 h-6 border rounded text-xs font-semibold flex-shrink-0 transition-colors"
+                :class="answers[currentIdx] === String.fromCharCode(65 + i) ? 'bg-primary border-primary text-primary-foreground' : 'border-border text-muted-foreground'"
+              >{{ String.fromCharCode(65 + i) }}</span>
+              <span class="text-sm leading-relaxed pt-0.5">{{ opt }}</span>
+            </div>
+          </div>
+
+          <!-- 导航按钮 -->
+          <div class="flex gap-2 pt-4 border-t border-border">
+            <Button size="lg" variant="outline" :disabled="currentIdx === 0" @click="prev">← 上一题</Button>
+            <Button size="lg" variant="outline" :disabled="currentIdx === questions.length - 1" @click="next">下一题 →</Button>
+            <Button size="lg" class="ml-auto" :disabled="submitted" @click="onSubmitExam">交卷</Button>
+          </div>
         </div>
-        <div v-else style="text-align: center">正在生成试卷...</div>
+
+        <!-- 右栏：占位 -->
+        <div class="border-l border-border p-4 overflow-y-auto">
+          <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3.5 pb-2.5 border-b border-border">提示</div>
+          <p class="text-xs text-muted-foreground leading-relaxed">
+            · 点击答题卡序号快速跳转<br>
+            · ☆ 标记可标记疑问题目<br>
+            · 交卷后自动判分
+          </p>
+        </div>
       </div>
+
+      <!-- 退出确认弹窗 -->
+      <AlertDialog
+        :open="showExitDialog"
+        title="确认退出"
+        description="退出后本次答题不保存。"
+        confirm-text="确定"
+        cancel-text="取消"
+        variant="destructive"
+        @update:open="showExitDialog = $event"
+        @confirm="confirmExit"
+        @cancel="showExitDialog = false"
+      />
+
+      <!-- 交卷确认弹窗 -->
+      <AlertDialog
+        :open="showSubmitDialog"
+        title="交卷确认"
+        description="交卷后立即判分。"
+        confirm-text="确定"
+        cancel-text="取消"
+        @update:open="showSubmitDialog = $event"
+        @confirm="confirmSubmit"
+        @cancel="showSubmitDialog = false"
+      />
+    </template>
+
+    <!-- ===== 交卷结果 ===== -->
+    <div v-else-if="submitted" class="max-w-[640px] mx-auto my-10 text-center">
+      <!-- 分数 -->
+      <div class="mb-5">
+        <span class="text-[56px] font-bold -tracking-[0.03em] text-primary">{{ score }}</span>
+        <span class="text-[32px] text-muted-foreground font-light mx-1.5">/</span>
+        <span class="text-[32px] text-muted-foreground font-medium">{{ questions.length }}</span>
+        <p class="text-sm text-muted-foreground mt-2">最终得分</p>
+      </div>
+
+      <hr class="border-border my-5" />
+
+      <!-- 错题 -->
+      <div v-if="wrongSet.size" class="text-left">
+        <div class="text-sm font-semibold mb-4">错题详情 ({{ wrongSet.size }} 题)</div>
+        <div v-for="wi in sortedWrong" :key="wi" class="border border-border rounded-lg p-4 mb-3">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-sm font-bold text-primary">第 {{ wi + 1 }} 题</span>
+            <Badge variant="default">{{ questions[wi].type }}</Badge>
+          </div>
+          <p class="text-sm font-medium mb-3 leading-relaxed">{{ questions[wi].question }}</p>
+          <div v-if="questions[wi].options" class="flex flex-col gap-0.5 mb-2">
+            <div v-for="(opt, j) in questions[wi].options" :key="j"
+              class="text-xs px-1 py-0.5 flex gap-1"
+              :class="wrongDetails[wi]?.answer?.includes(String.fromCharCode(65 + j)) ? 'text-success font-medium' : 'text-muted-foreground'"
+            >{{ String.fromCharCode(65 + j) }}. {{ opt }}</div>
+          </div>
+          <div class="flex flex-col gap-2 text-xs mb-2">
+            <span>你的：<span class="text-destructive font-semibold">{{ fmtAns(answers[wi], questions[wi]) }}</span></span>
+            <span>正确：<span class="text-success font-semibold">{{ wrongDetails[wi]?.answer || '?' }}</span></span>
+          </div>
+          <div v-if="wrongDetails[wi]?.explanation" class="p-3 bg-muted rounded border-l-2 border-primary mt-2">
+            <span class="text-[10px] font-semibold text-primary uppercase tracking-wider block mb-0.5">解析</span>
+            <span class="text-xs leading-relaxed text-muted-foreground">{{ wrongDetails[wi].explanation }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 全对 -->
+      <div v-else class="py-8">
+        <span class="text-4xl">🎉</span>
+        <p class="text-sm text-muted-foreground mt-3">全部答对！太厉害了！</p>
+      </div>
+
+      <hr class="border-border my-5" />
+      <Button size="lg" class="mt-4" @click="onExitExam">退出考试</Button>
     </div>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch } from "vue";
-import { ElMessageBox, ElMessage } from "element-plus";
-import * as api from "../api";
-import axios from "axios";
+import { ref, computed, onUnmounted, watch } from 'vue'
+import { toast } from 'vue-sonner'
+import Button from './ui/Button.vue'
+import Badge from './ui/Badge.vue'
+import Textarea from './ui/Textarea.vue'
+import AlertDialog from './ui/AlertDialog.vue'
+import * as api from '../api'
+import axios from 'axios'
 
-const props = defineProps({
-  examInfo: { type: Object, required: true },
-});
+const props = defineProps({ examInfo: { type: Object, required: true } })
 
-const questions = ref([]);
-const answers = ref([]); // 每题的答案，未答为null
-const markedSet = ref(new Set()); // 新增：用于存储标记的题目索引
-const currentIdx = ref(0);
-const timer = ref(null);
-const timeLeft = ref(0);
-const examStarted = ref(false);
-const submitted = ref(false);
-const score = ref(0);
-const wrongSet = ref(new Set());
-const correctSet = ref(new Set());
-const wrongDetails = ref({});
+const questions = ref([])
+const answers = ref([])
+const markedSet = ref(new Set())
+const currentIdx = ref(0)
+const timer = ref(null)
+const timeLeft = ref(0)
+const examStarted = ref(false)
+const submitted = ref(false)
+const score = ref(0)
+const wrongSet = ref(new Set())
+const correctSet = ref(new Set())
+const wrongDetails = ref({})
 
+const showExitDialog = ref(false)
+const showSubmitDialog = ref(false)
+
+const sortedWrong = computed(() => Array.from(wrongSet.value).sort((a, b) => a - b))
 const timeStr = computed(() => {
-  const m = Math.floor(timeLeft.value / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = (timeLeft.value % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
-});
+  const m = Math.floor(timeLeft.value / 60).toString().padStart(2, '0')
+  const s = (timeLeft.value % 60).toString().padStart(2, '0')
+  return `${m}:${s}`
+})
 
-// 生成试卷
-const generatePaper = async () => {
-  const res = await axios.get("/generate-paper", {
-    params: { bankName: props.examInfo.bank },
-  });
-  questions.value = res.data;
-  answers.value = Array(questions.value.length).fill(null);
-  markedSet.value = new Set(); // 新增：重置标记集合
-  currentIdx.value = 0;
-  timeLeft.value = (props.examInfo.duration || 60) * 60;
-  examStarted.value = true;
-  submitted.value = false;
-  score.value = 0;
-  wrongSet.value = new Set();
-  correctSet.value = new Set();
-  if (timer.value) clearInterval(timer.value);
+const genPaper = async () => {
+  const r = await axios.get('/generate-paper', { params: { bankName: props.examInfo.bank } })
+  questions.value = r.data
+  answers.value = Array(questions.value.length).fill(null)
+  markedSet.value = new Set(); currentIdx.value = 0
+  timeLeft.value = (props.examInfo.duration || 60) * 60
+  examStarted.value = true; submitted.value = false
+  score.value = 0; wrongSet.value = new Set(); correctSet.value = new Set(); wrongDetails.value = {}
+  if (timer.value) clearInterval(timer.value)
   timer.value = setInterval(() => {
-    timeLeft.value--;
-    if (timeLeft.value <= 0) {
-      clearInterval(timer.value);
-      submitExam();
-    }
-  }, 1000);
-};
+    timeLeft.value--
+    if (timeLeft.value <= 0) { clearInterval(timer.value); submitExam() }
+  }, 1000)
+}
 
-watch(
-  () => props.examInfo,
-  (val) => {
-    if (val && val.bank) {
-      generatePaper();
-    }
-  },
-  { immediate: true }
-);
+watch(() => props.examInfo, v => { if (v?.bank) genPaper() }, { immediate: true })
 
-const goTo = (idx) => {
-  if (!examStarted.value) return;
-  currentIdx.value = idx;
-};
-const prev = () => {
-  if (currentIdx.value > 0) currentIdx.value--;
-};
-const next = () => {
-  if (currentIdx.value < questions.value.length - 1) currentIdx.value++;
-};
+const goTo = i => { if (examStarted.value) currentIdx.value = i }
+const prev = () => { if (currentIdx.value > 0) currentIdx.value-- }
+const next = () => { if (currentIdx.value < questions.value.length - 1) currentIdx.value++ }
 
-// 新增：标记/取消标记题目
 const toggleMark = () => {
-  if (markedSet.value.has(currentIdx.value)) {
-    markedSet.value.delete(currentIdx.value);
-  } else {
-    markedSet.value.add(currentIdx.value);
-  }
-};
+  if (markedSet.value.has(currentIdx.value)) markedSet.value.delete(currentIdx.value)
+  else markedSet.value.add(currentIdx.value)
+}
 
-// 多选题选项切换
 function toggleMultiOption(i) {
-  const label = String.fromCharCode(65 + i);
-  if (!Array.isArray(answers.value[currentIdx.value])) {
-    answers.value[currentIdx.value] = [];
-  }
-  const arr = answers.value[currentIdx.value];
-  const idx = arr.indexOf(label);
-  if (idx === -1) {
-    arr.push(label);
-  } else {
-    arr.splice(idx, 1);
-  }
-  // 触发响应式
-  answers.value[currentIdx.value] = [...arr];
+  const l = String.fromCharCode(65 + i)
+  if (!Array.isArray(answers.value[currentIdx.value])) answers.value[currentIdx.value] = []
+  const a = [...answers.value[currentIdx.value]]
+  const p = a.indexOf(l); p === -1 ? a.push(l) : a.splice(p, 1)
+  answers.value[currentIdx.value] = a
 }
 
-// 退出考试
-const emit = defineEmits(["exit-exam"]);
-const onExitExam = () => {
-  ElMessageBox.confirm(
-    "确定要退出考试吗？退出后本次答题将不会保存。",
-    "退出确认",
-    {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    }
-  ).then(() => {
-    emit("exit-exam");
-  });
-};
+const emit = defineEmits(['exit-exam'])
 
-// 交卷二次确认+未答题校验
-const onSubmitExam = async () => {
-  if (submitted.value) return;
-  // 检查是否有未答题
-  const unanswered = answers.value.findIndex((ans, idx) => {
-    if (questions.value[idx].type === "多选题")
-      return !Array.isArray(ans) || ans.length === 0;
-    return ans == null || ans === "";
-  });
-  if (unanswered !== -1) {
-    ElMessage.warning(`第${unanswered + 1}题未作答，请全部作答后再交卷！`);
-    return;
-  }
-  ElMessageBox.confirm("确定要交卷吗？交卷后将立即判分。", "交卷确认", {
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
-    type: "warning",
-  }).then(async () => {
-    await submitExam();
-  });
-};
+const onExitExam = () => { showExitDialog.value = true }
+const confirmExit = () => { showExitDialog.value = false; emit('exit-exam') }
 
-function formatUserAnswer(ans, q) {
-  if (q.type === "多选题" && Array.isArray(ans)) return ans.join(", ");
-  return ans;
+const onSubmitExam = () => {
+  if (submitted.value) return
+  const na = answers.value.findIndex((a, i) => {
+    if (questions.value[i].type === '多选题') return !Array.isArray(a) || a.length === 0
+    return a == null || a === ''
+  })
+  if (na !== -1) { toast.warning(`第${na + 1}题未作答`); return }
+  showSubmitDialog.value = true
 }
 
-// 判题逻辑，调用api.js接口
+const confirmSubmit = () => { showSubmitDialog.value = false; submitExam() }
+
+const fmtAns = (a, q) => (q.type === '多选题' && Array.isArray(a)) ? a.join(', ') : (a || '')
+
 const submitExam = async () => {
-  if (submitted.value) return;
-  clearInterval(timer.value);
-  submitted.value = true;
-  examStarted.value = false; // 交卷后关闭考试状态，显示结果页
-  let correctCount = 0;
-  const wrong = new Set();
-  const correct = new Set();
-  const wrongDetailObj = {};
+  if (submitted.value) return
+  clearInterval(timer.value); submitted.value = true; examStarted.value = false
+  let cc = 0; const wr = new Set(), cr = new Set(), wd = {}
   for (let i = 0; i < questions.value.length; i++) {
-    const q = questions.value[i];
-    const ans = answers.value[i];
-    let resp;
-    try {
-      resp = await api.submitAnswer(q.id, ans, props.examInfo.bank);
-    } catch (e) {
-      wrong.add(i);
-      continue;
-    }
-    if (resp.data && resp.data.correct) {
-      correctCount++;
-      correct.add(i);
-    } else {
-      wrong.add(i);
-      if (resp.data) {
-        wrongDetailObj[i] = {
-          answer: resp.data.answer,
-          explanation: resp.data.explanation,
-        };
-      }
+    const q = questions.value[i], a = answers.value[i]
+    let r; try { r = await api.submitAnswer(q.id, a, props.examInfo.bank) } catch { wr.add(i); continue }
+    if (r.data?.correct) { cc++; cr.add(i) } else {
+      wr.add(i); if (r.data) wd[i] = { answer: r.data.answer, explanation: r.data.explanation }
     }
   }
-  score.value = correctCount;
-  wrongSet.value = wrong;
-  correctSet.value = correct;
-  wrongDetails.value = wrongDetailObj;
-};
+  score.value = cc; wrongSet.value = wr; correctSet.value = cr; wrongDetails.value = wd
+}
 
-onUnmounted(() => {
-  if (timer.value) clearInterval(timer.value);
-});
+onUnmounted(() => { if (timer.value) clearInterval(timer.value) })
 </script>
-
-<style scoped>
-.exam-card {
-  width: 1100px;
-  min-height: 700px;
-  margin: 30px auto;
-  border-radius: 16px;
-}
-.exam-body {
-  display: flex;
-  flex-direction: row;
-}
-.left-panel {
-  width: 180px;
-  margin-right: 30px;
-}
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-}
-.card-item {
-  width: 30px;
-  height: 30px;
-  background: #f2f2f2;
-  border-radius: 4px;
-  text-align: center;
-  line-height: 30px;
-  font-size: 14px;
-  cursor: pointer;
-  border: 1.5px solid #dcdfe6;
-  transition: all 0.2s;
-  position: relative; /* 新增：为角标定位 */
-}
-.card-item.current {
-  border: 2px solid #409eff;
-  background: #e6f7ff;
-  font-weight: bold;
-}
-.card-item.answered {
-  background: #e1f3d8;
-  border-color: #67c23a;
-}
-
-/* START: 新增标记样式 */
-.card-item.marked {
-  border-color: #e6a23c;
-}
-.mark-indicator {
-  position: absolute;
-  top: -8px;
-  right: -5px;
-  font-size: 14px;
-}
-/* END: 新增标记样式 */
-
-.card-item.correct {
-  border: 2px solid #67c23a;
-}
-.card-item.wrong {
-  border: 2px solid #f56c6c;
-}
-.main-panel {
-  flex: 1;
-  min-width: 0;
-}
-.exam-info {
-  margin-bottom: 18px;
-  font-size: 16px;
-}
-.question-panel {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  padding: 24px 32px 18px 32px;
-  margin-bottom: 18px;
-}
-/* 修改：使用flex布局对齐标题和按钮 */
-.question-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 10px;
-}
-.q-idx {
-  color: #409eff;
-}
-.q-type {
-  color: #909399;
-  margin-left: 8px;
-}
-.question-content {
-  font-size: 17px;
-  margin-bottom: 18px;
-  line-height: 1.7;
-}
-.options-panel {
-  margin-bottom: 18px;
-}
-.option-label {
-  font-weight: bold;
-  margin-right: 4px;
-}
-.question-actions {
-  display: flex;
-  gap: 16px;
-  margin-top: 8px;
-}
-.row-options {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin-bottom: 18px;
-}
-.row-option-item {
-  width: 100%;
-  min-height: 44px;
-  padding: 12px 15px;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background-color: #fff;
-  box-sizing: border-box;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  font-size: 16px;
-  cursor: pointer;
-  margin: 0 !important;
-}
-/* 隐藏原生checkbox/radio圆圈 */
-.row-option-item :deep(.el-checkbox__input),
-.column-option-item :deep(.el-radio__input) {
-  display: none !important;
-}
-/* 选中高亮 */
-.row-option-item.is-checked,
-.column-option-item.is-checked {
-  border-color: #409eff;
-  background-color: #ecf5ff;
-  color: #409eff;
-  font-weight: bold;
-}
-.column-options {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin-bottom: 18px;
-}
-.column-option-item {
-  width: 100%;
-  min-height: 44px;
-  padding: 12px 15px;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background-color: #fff;
-  box-sizing: border-box;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 30px;
-  font-size: 16px;
-  flex-direction: row;
-}
-.column-option-item:hover {
-  border-color: #409eff;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
-}
-.column-option-item.is-checked {
-  border-color: #409eff;
-  background-color: #ecf5ff;
-  color: #409eff;
-  font-weight: bold;
-}
-
-ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.wrong-options li {
-  margin-bottom: 6px;
-  color: #606266;
-  text-align: left;
-  text-decoration: none;
-}
-
-.wrong-options .correct-answer {
-  color: #67c23a;
-  font-weight: bold;
-}
-
-/* --- 新增的标题样式 --- */
-
-.card-title {
-  /* 关键：让标题元素横跨所有列 */
-  grid-column: 1 / -1;
-  font-weight: bold;
-  color: #333;
-  margin-top: 15px;
-  margin-bottom: 5px;
-  padding-left: 5px;
-  font-size: 14px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 5px;
-}
-
-/* 第一个标题不需要上边距 */
-
-.card-grid .card-title:first-of-type {
-  margin-top: 0;
-}
-</style>

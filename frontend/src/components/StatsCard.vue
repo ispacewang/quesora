@@ -1,117 +1,134 @@
-<!-- components/StatsCard.vue -->
 <template>
-    <el-card class="stats-card">
-        <template #header>
-            <div class="card-header">
-                <span>答题情况</span>
-            </div>
-        </template>
+  <div class="flex flex-col items-center gap-5 py-6 px-4 h-full overflow-y-auto">
+    <!-- 环形图 -->
+    <div class="relative w-[120px] h-[120px] flex-shrink-0">
+      <Doughnut v-if="hasData" :data="donutData" :options="donutOptions" />
+      <div v-else class="flex items-center justify-center h-full">
+        <div class="w-[90px] h-[90px] rounded-full border-[10px] border-muted" />
+      </div>
+      <div v-if="hasData" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <span class="text-xl font-bold tabular-nums">{{ rate }}%</span>
+        <span class="text-[10px] text-muted-foreground">正确率</span>
+      </div>
+    </div>
 
-        <!-- 上半部分：数据显示 -->
-        <div class="stats-display">
-            <div class="stat-item correct">
-                <span class="stat-value">{{ stats.correct }}</span>
-                <span class="stat-label">正确</span>
-            </div>
-            <div class="stat-item incorrect">
-                <span class="stat-value">{{ stats.incorrect }}</span>
-                <span class="stat-label">错误</span>
-            </div>
-        </div>
+    <!-- 数字行 -->
+    <div class="flex items-center gap-4 w-full justify-center">
+      <div class="text-center">
+        <span class="block text-lg font-bold text-success">{{ stats.correct }}</span>
+        <span class="text-[10px] text-muted-foreground">正确</span>
+      </div>
+      <div class="w-px h-7 bg-border" />
+      <div class="text-center">
+        <span class="block text-lg font-bold text-destructive">{{ stats.incorrect }}</span>
+        <span class="text-[10px] text-muted-foreground">错误</span>
+      </div>
+      <div class="w-px h-7 bg-border" />
+      <div class="text-center">
+        <span class="block text-lg font-bold">{{ stats.correct + stats.incorrect }}</span>
+        <span class="text-[10px] text-muted-foreground">总题</span>
+      </div>
+    </div>
 
-        <!-- 下半部分：图表 -->
-        <div class="chart-container">
-            <Doughnut v-if="hasData" :data="chartData" :options="chartOptions" />
-            <el-empty v-else description="暂无答题数据" :image-size="80" />
-        </div>
-    </el-card>
+    <!-- 题类型柱形图 -->
+    <div v-if="hasTypeData" class="w-full flex-shrink-0">
+      <div class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">题型分布</div>
+      <div class="h-[120px]">
+        <Bar :data="barData" :options="barOptions" />
+      </div>
+    </div>
+
+    <div v-if="!hasData" class="text-xs text-muted-foreground text-center">暂无答题记录</div>
+  </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { Doughnut } from 'vue-chartjs';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { ElCard, ElEmpty } from 'element-plus';
+import { computed } from 'vue'
+import { Doughnut, Bar } from 'vue-chartjs'
+import { Chart as ChartJS, ArcElement, Tooltip, BarElement, CategoryScale, LinearScale } from 'chart.js'
+ChartJS.register(ArcElement, Tooltip, BarElement, CategoryScale, LinearScale)
 
-// 注册 Chart.js 模块
-ChartJS.register(ArcElement, Tooltip, Legend);
-
-// 接收从父组件传来的统计数据
 const props = defineProps({
-    stats: {
-        type: Object,
-        required: true,
-        default: () => ({ correct: 0, incorrect: 0 })
-    }
-});
+  stats: { type: Object, required: true, default: () => ({ correct: 0, incorrect: 0, byType: {} }) }
+})
 
-// 判断是否有数据用于显示图表
-const hasData = computed(() => props.stats.correct > 0 || props.stats.incorrect > 0);
+const total = computed(() => props.stats.correct + props.stats.incorrect)
+const hasData = computed(() => total.value > 0)
+const rate = computed(() => total.value > 0 ? Math.round(props.stats.correct / total.value * 100) : 0)
 
-// 根据 props 动态计算图表数据
-const chartData = computed(() => ({
-    labels: ['正确', '错误'],
-    datasets: [
-        {
-            backgroundColor: ['#67C23A', '#F56C6C'], // 成功和错误的颜色
-            data: [props.stats.correct, props.stats.incorrect]
-        }
-    ]
-}));
+const typeOrder = ['单选题', '多选题', '判断题', '简答题']
+const hasTypeData = computed(() => {
+  return typeOrder.some(t => props.stats.byType?.[t]?.total > 0)
+})
 
-// 图表配置项
-const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: {
-            position: 'bottom', // 图例放在底部
-        }
-    }
-};
+const barData = computed(() => ({
+  labels: typeOrder.filter(t => props.stats.byType?.[t]?.total > 0),
+  datasets: [
+    {
+      label: '正确',
+      data: typeOrder.filter(t => props.stats.byType?.[t]?.total > 0).map(t => props.stats.byType[t].correct),
+      backgroundColor: '#5d9b6a',
+      borderWidth: 0,
+      borderRadius: 0,
+      barPercentage: 0.6,
+    },
+    {
+      label: '错误',
+      data: typeOrder.filter(t => props.stats.byType?.[t]?.total > 0).map(t => props.stats.byType[t].incorrect),
+      backgroundColor: '#c2655a',
+      borderWidth: 0,
+      borderRadius: 0,
+      barPercentage: 0.6,
+    },
+  ],
+}))
+
+const donutData = computed(() => ({
+  datasets: [{
+    data: [props.stats.correct || 0.1, props.stats.incorrect || 0.1],
+    backgroundColor: ['#4a7dbf', '#e0ded9'],
+    borderWidth: 0,
+  }]
+}))
+
+const donutOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  cutout: '75%',
+  plugins: { legend: { display: false }, tooltip: { enabled: false } },
+  events: [],
+}
+
+const barOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  indexAxis: 'y',
+  stacked: true,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(29, 29, 31, 0.9)',
+      padding: 8,
+      bodyFont: { size: 11 },
+      cornerRadius: 0,
+    },
+  },
+  scales: {
+    x: {
+      stacked: true,
+      display: false,
+      grid: { display: false },
+    },
+    y: {
+      stacked: true,
+      ticks: {
+        font: { size: 10 },
+        color: '#86868b',
+        padding: 4,
+      },
+      grid: { display: false },
+      border: { display: false },
+    },
+  },
+}
 </script>
-
-<style scoped>
-.stats-card {
-    width: 100%;
-    border-radius: 16px;
-}
-
-.card-header span {
-    font-weight: bold;
-    font-size: 18px;
-}
-
-.stats-display {
-    display: flex;
-    justify-content: space-around;
-    text-align: center;
-    margin-bottom: 24px;
-}
-
-.stat-item .stat-value {
-    display: block;
-    font-size: 32px;
-    font-weight: bold;
-    line-height: 1.2;
-}
-
-.stat-item .stat-label {
-    font-size: 14px;
-    color: #606266;
-}
-
-.stat-item.correct .stat-value {
-    color: #67C23A;
-}
-
-.stat-item.incorrect .stat-value {
-    color: #F56C6C;
-}
-
-.chart-container {
-    position: relative;
-    height: 250px;
-    /* 给图表一个固定的高度 */
-}
-</style>

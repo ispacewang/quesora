@@ -1,237 +1,184 @@
-<!-- src/App.vue -->
 <script setup>
-import { ref, onMounted } from 'vue';
-import Quiz from './components/Quiz.vue';
-import StatsCard from './components/StatsCard.vue';
-import WrongAnswerCard from './components/WrongAnswerCard.vue';
-import Exam from './components/Exam.vue';
-import { ElMessage } from 'element-plus';
+import { ref, onMounted } from 'vue'
+import { toast } from 'vue-sonner'
+import { useTheme } from './stores/theme'
+import { addQuestionToMistakeBook } from './utils/mistakeBook'
+import AppTour from './components/AppTour.vue'
+import Quiz from './components/Quiz.vue'
+import StatsCard from './components/StatsCard.vue'
+import WrongAnswerCard from './components/WrongAnswerCard.vue'
+import Exam from './components/Exam.vue'
+import TitleBar from './components/TitleBar.vue'
+import Dialog from './components/ui/Dialog.vue'
+import DialogHeader from './components/ui/DialogHeader.vue'
+import DialogTitle from './components/ui/DialogTitle.vue'
+import DialogDescription from './components/ui/DialogDescription.vue'
+import DialogFooter from './components/ui/DialogFooter.vue'
+import Button from './components/ui/Button.vue'
+import Input from './components/ui/Input.vue'
+import Select from './components/ui/Select.vue'
+import SelectItem from './components/ui/SelectItem.vue'
 
-// --- 您原有的代码 ---
-const quizRef = ref(null);
-const quizStats = ref({ correct: 0, incorrect: 0 });
-const wrongAnswers = ref([]);
+const quizRef = ref(null)
+const quizStats = ref({ correct: 0, incorrect: 0, byType: {} })
+const wrongAnswers = ref([])
 
-// 2. 新增一个 ref 来存储当前题库名称
-const currentBankName = ref('');
+// 初始化主题
+useTheme()
 
-// 考试相关状态
-const isExamMode = ref(false); // 是否处于考试模式
-const examInfo = ref(null);   // 考试详情对象
+const isExamMode = ref(false)
+const examInfo = ref(null)
 
 const handleAnswerSubmitted = (result) => {
-if (result.isCorrect) {
-  quizStats.value.correct++;
-} else {
-  quizStats.value.incorrect++;
-  // 【核心修正】使用 `idx` 进行去重判断，而不是 `id`
-  if (result.questionData && !wrongAnswers.value.some(item => item.questionData.idx === result.questionData.idx)) {
-    // unshift 的是 result，它本身就包含了 isCorrect 和 questionData
-    wrongAnswers.value.unshift(result);
-    console.log('错题本更新:', wrongAnswers.value);
+  const type = result.questionData?.type || '未知'
+  if (!quizStats.value.byType[type]) {
+    quizStats.value.byType[type] = { correct: 0, incorrect: 0, total: 0 }
+  }
+  quizStats.value.byType[type].total++
+  if (result.isCorrect) {
+    quizStats.value.correct++
+    quizStats.value.byType[type].correct++
+  } else {
+    quizStats.value.incorrect++
+    quizStats.value.byType[type].incorrect++
+    if (result.questionData && !wrongAnswers.value.some(x => x.questionData.questionId === result.questionData.questionId)) {
+      wrongAnswers.value.unshift(result)
+      addQuestionToMistakeBook(result.questionData)
+      quizRef.value?.refreshBanks?.()
+    }
   }
 }
 
-};
+const handleBankChanged = () => {
+  quizStats.value = { correct: 0, incorrect: 0, byType: {} }
+  wrongAnswers.value = []
+}
 
-const onUploaded = (newBank) => { // 假设上传后会返回新的题库信息
-  quizRef.value?.resetQuestion();
-  quizStats.value = { correct: 0, incorrect: 0 };
-  wrongAnswers.value = [];
-  if (newBank && newBank.bankName) {
-    currentBankName.value = newBank.bankName; // 上传后更新题库名
-  }
-};
-
-// 3. 新增一个处理函数，用于接收从 Quiz 组件传来的题库变化事件
-const handleBankChanged = (newBankName) => {
-  currentBankName.value = newBankName;
-  // 切换题库时，重置统计数据和错题本
-  quizStats.value = { correct: 0, incorrect: 0 };
-  wrongAnswers.value = [];
-};
-
-// 新建考试事件处理
 const handleCreateExam = (info) => {
-  // info 可为考试详情对象，或直接设为 true
-  isExamMode.value = true;
-  examInfo.value = info || {};
-  // 进入考试时重置统计和错题
-  quizStats.value = { correct: 0, incorrect: 0 };
-  wrongAnswers.value = [];
-};
+  isExamMode.value = true
+  examInfo.value = info || {}
+  quizStats.value = { correct: 0, incorrect: 0, byType: {} }
+  wrongAnswers.value = []
+}
 
-// 退出考试事件处理
-const handleExitExam = () => {
-  isExamMode.value = false;
-  examInfo.value = null;
-};
+const handleExitExam = () => { isExamMode.value = false; examInfo.value = null }
 
-// 新建考试弹窗相关
-const showExamDialog = ref(false);
-const examForm = ref({
-  bank: '',
-  duration: 60 // 默认60分钟
-});
-const availableBanks = ref([]); // 题库列表
+// 考试弹窗
+const showExamDialog = ref(false)
+const examForm = ref({ bank: '', duration: 60 })
+const availableBanks = ref([])
 
-// 获取题库列表（假设有API或可从Quiz组件/BankSelector获取）
 const fetchBanks = async () => {
-  // 这里假设有 getBanks API，实际可根据你的实现调整
   try {
-    const res = await import('./api').then(m => m.getBanks());
-    availableBanks.value = res.data.banks || [];
-  } catch (e) {
-    availableBanks.value = [];
-  }
-};
+    const { getBanks } = await import('./api')
+    const res = await getBanks()
+    availableBanks.value = res.data.banks || []
+  } catch { availableBanks.value = [] }
+}
 
 const openExamDialog = async () => {
-  await fetchBanks();
-  showExamDialog.value = true;
-};
+  await fetchBanks()
+  if (!availableBanks.value.length) { toast.warning('请先上传题库'); return }
+  showExamDialog.value = true
+}
 
 const startExam = () => {
-  if (!examForm.value.bank) {
-    ElMessage.error('请选择题库');
-    return;
-  }
-  if (!examForm.value.duration || examForm.value.duration <= 0) {
-    ElMessage.error('请输入有效的考试时长');
-    return;
-  }
-  showExamDialog.value = false;
-  handleCreateExam({
-    bank: examForm.value.bank,
-    duration: examForm.value.duration
-  });
-};
+  if (!examForm.value.bank) { toast.error('请选择题库'); return }
+  if (!examForm.value.duration || examForm.value.duration <= 0) { toast.error('请输入有效时长'); return }
+  showExamDialog.value = false
+  handleCreateExam({ bank: examForm.value.bank, duration: examForm.value.duration })
+}
 
-// 新增：引导弹窗相关
-const showIntroDialog = ref(false);
-
+// 引导弹窗
+const showIntroDialog = ref(false)
 onMounted(() => {
   if (!localStorage.getItem('ai-quiz-intro-shown')) {
-    showIntroDialog.value = true;
-    localStorage.setItem('ai-quiz-intro-shown', '1');
+    showIntroDialog.value = true
+    localStorage.setItem('ai-quiz-intro-shown', '1')
   }
-});
-
+})
 </script>
 
 <template>
-  <el-container style="min-height:100vh;">
-    <el-main>
-      <!-- 新建考试按钮，仅在非考试模式下显示 -->
-      <div v-if="!isExamMode" class="exam-bar">
-        <el-button type="primary" style="color: #fff;" icon="Plus" @click="openExamDialog">新建考试</el-button>
+  <div class="h-screen flex flex-col overflow-hidden bg-background/80">
+    <!-- ===== 顶栏（固定不滚动） ===== -->
+    <TitleBar class="sticky top-0 z-50" />
+
+    <!-- 考试按钮（非考试模式下放在 TitleBar 下方操作栏） -->
+    <div v-if="!isExamMode" class="flex items-center justify-between px-5 py-2 bg-background border-b border-border">
+      <AppTour />
+      <Button data-tour="exam-btn" @click="openExamDialog">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        考试
+      </Button>
+    </div>
+
+    <!-- 引导弹窗 -->
+    <Dialog :open="showIntroDialog" @update:open="showIntroDialog = $event" class="sm:max-w-[420px]">
+      <DialogHeader>
+        <DialogTitle>功能介绍</DialogTitle>
+        <DialogDescription>答题小助手 — 题库上传、刷题、考试、错题本</DialogDescription>
+      </DialogHeader>
+      <div class="text-sm leading-relaxed">
+        <ul class="space-y-1 pl-4 list-disc text-muted-foreground">
+          <li>Excel/CSV 题库一键上传</li>
+          <li>刷题模式 + 考试模式切换</li>
+          <li>答题卡、倒计时、批量判题</li>
+          <li>多题型：单选 / 多选 / 判断 / 简答</li>
+        </ul>
       </div>
-      <el-dialog title="新建考试" v-model="showExamDialog" width="400px">
-        <el-form :model="examForm" label-width="80px">
-          <el-form-item label="题库">
-            <el-select v-model="examForm.bank" placeholder="请选择题库">
-              <el-option v-for="bank in availableBanks" :key="bank" :label="bank" :value="bank" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="时长(分钟)">
-            <el-input-number v-model="examForm.duration" :min="1" :max="180" />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="showExamDialog = false">取消</el-button>
-          <el-button type="primary" @click="startExam">开始考试</el-button>
-        </template>
-      </el-dialog>
-      <!-- 新增：功能介绍弹窗 -->
-      <el-dialog v-model="showIntroDialog" title="功能介绍" width="500px" :close-on-click-modal="false">
-        <div style="font-size:17px;line-height:1.8;padding:8px 0;">
-          <b>答题小助手</b> 是一款支持题库上传、选择、考试、批量判题和错题本的桌面应用。<br><br>
-          <ul style="padding-left:20px;">
-            <li>支持 <b>Excel/CSV</b> 题库一键上传，自动分类。（请按照固定格式表头的excel）</li>
-            <li>支持刷题模式和考试模式切换</li>
-            <li>考试模式：<b>100题答题卡</b>、倒计时、批量判题、分数答案展示。</li>
-            <li>题库可删除，支持多题型（单选/多选/判断/简答）。</li>
-          </ul>
-          <div style="color:#909399;font-size:14px;margin-top:8px;">如有建议或问题，欢迎反馈！</div>
-        </div>
-        <template #footer>
-          <el-button type="primary" @click="showIntroDialog=false">我知道了</el-button>
-        </template>
-      </el-dialog>
-      <div class="main-container">
-        <div class="stats-container" v-if="!isExamMode">
-          <!-- 考试模式下显示考试详情，否则显示统计卡 -->
-          <!-- <Exam v-if="isExamMode" :exam-info="examInfo" @exit-exam="handleExitExam" /> -->
-          <StatsCard :stats="quizStats" />
-        </div>
+      <DialogFooter>
+        <Button @click="showIntroDialog = false">知道了</Button>
+      </DialogFooter>
+    </Dialog>
 
-        <div :class="['quiz-container', { 'exam-mode': isExamMode }]">
-          <!-- 考试模式下显示 Exam 组件，否则显示 Quiz 组件 -->
-          <Exam v-if="isExamMode" :exam-info="examInfo" @exit-exam="handleExitExam" />
-          <Quiz v-else ref="quizRef" @answer-submitted="handleAnswerSubmitted" @bank-changed="handleBankChanged" />
+    <!-- 考试弹窗 -->
+    <Dialog :open="showExamDialog" @update:open="showExamDialog = $event" class="sm:max-w-[400px]">
+      <DialogHeader>
+        <DialogTitle>新建考试</DialogTitle>
+      </DialogHeader>
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <label class="text-sm font-medium">题库</label>
+          <Select v-model="examForm.bank" placeholder="请选择题库">
+            <SelectItem v-for="b in availableBanks" :key="b" :value="b">{{ b }}</SelectItem>
+          </Select>
         </div>
-
-        <div class="right-panel" v-if="!isExamMode">
-          <!-- 考试模式下不显示内容 -->
-          <WrongAnswerCard :wrong-answers="wrongAnswers" />
+        <div class="space-y-2">
+          <label class="text-sm font-medium">时长（分钟）</label>
+          <Input :model-value="examForm.duration" @update:model-value="examForm.duration = Number($event) || 0" type="number" :min="1" :max="180" />
         </div>
       </div>
-      <!-- 其它内容... -->
-    </el-main>
-  </el-container>
+      <DialogFooter>
+        <Button variant="outline" @click="showExamDialog = false">取消</Button>
+        <Button @click="startExam">开始</Button>
+      </DialogFooter>
+    </Dialog>
+
+    <!-- ===== 考试模式 ===== -->
+    <div v-if="isExamMode" class="flex-1">
+      <Exam :exam-info="examInfo" @exit-exam="handleExitExam" />
+    </div>
+
+    <!-- ===== 三栏布局（刷题模式） ===== -->
+    <div v-else class="flex-1 grid bg-background" style="grid-template-columns: 260px 1fr 340px; min-height: 0;">
+      <!-- 左栏：答题统计 -->
+      <div data-tour="stats" class="bg-background border-r border-border overflow-y-auto min-h-0">
+        <StatsCard :stats="quizStats" />
+      </div>
+
+      <!-- 中间：答题区 -->
+      <div data-tour="quiz" class="bg-background overflow-y-auto min-h-0">
+        <Quiz ref="quizRef" @answer-submitted="handleAnswerSubmitted" @bank-changed="handleBankChanged" />
+      </div>
+
+      <!-- 右栏：错题本 -->
+      <div data-tour="wrong" class="bg-background border-l border-border overflow-y-auto sticky top-[52px] max-h-[calc(100vh-52px)] min-h-0">
+        <WrongAnswerCard :wrong-answers="wrongAnswers" @clear="wrongAnswers = []" />
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <Toaster position="top-center" rich-colors />
+  </div>
 </template>
-
-<style scoped>
-/* 您原有的样式保持不变 */
-.main-container {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 24px;
-  padding: 24px;
-  max-width: 100vw;
-}
-
-.stats-container {
-  width: 350px;
-}
-
-.quiz-container {
-  width: 600px;
-}
-
-.quiz-container.exam-mode {
-  width: 1100px;
-  transition: width 0.3s;
-}
-
-.right-panel {
-  width: 400px;
-  flex-shrink: 0;
-  height: calc(100vh - 48px);
-}
-
-/* 6. 为分析器组件添加容器样式 */
-.analyzer-container {
-  padding: 0 24px 24px 24px;
-  max-width: calc(350px + 600px + 400px + 48px);
-  margin: 0 auto;
-}
-
-@media (max-width: 1400px) {
-  .main-container {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .right-panel {
-    margin-top: 24px;
-    width: calc(350px + 600px + 24px);
-    max-width: 100%;
-  }
-
-  .analyzer-container {
-    max-width: 100%;
-  }
-}
-</style>
