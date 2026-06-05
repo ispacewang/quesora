@@ -37,7 +37,7 @@
       </div>
 
       <!-- 三栏布局 -->
-      <div class="grid" style="grid-template-columns: 180px 1fr 300px; min-height: calc(100vh - 130px);">
+      <div class="grid" style="grid-template-columns: 180px 1fr 300px; height: calc(100vh - 130px);">
         <!-- 左栏：答题卡 -->
         <div class="p-3.5 overflow-y-auto border-r border-border">
           <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3.5 pb-2.5 border-b border-border">答题卡</div>
