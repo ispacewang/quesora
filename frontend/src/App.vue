@@ -156,7 +156,7 @@ onMounted(() => {
     </Dialog>
 
     <!-- ===== 考试模式 ===== -->
-    <div v-if="isExamMode" class="flex-1">
+    <div v-if="isExamMode" class="flex-1 bg-background">
       <Exam :exam-info="examInfo" @exit-exam="handleExitExam" />
     </div>
 
