@@ -24,10 +24,15 @@ import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import ExamHistoryPanel from './components/ExamHistoryPanel.vue'
 import { useAiMode } from './composables/useAiMode'
 import { useExamHistory } from './composables/useExamHistory'
+import { useSavedMistakeBooks } from './composables/useSavedMistakeBooks'
 
 const quizRef = ref(null)
 const quizStats = ref({ correct: 0, incorrect: 0, byType: {} })
 const wrongAnswers = ref([])
+
+const UPDATE_NOTICE_VERSION = '2026-06-26-wrong-note-save'
+const UPDATE_NOTICE_KEY = 'quesora-update-notice-version'
+const showUpdateNotice = ref(false)
 
 useTheme()
 
@@ -93,6 +98,8 @@ const showExamDialog = ref(false)
 const downloadingPaper = ref(false)
 const showHistoryPanel = ref(false)
 const { sorted: examRecords } = useExamHistory()
+const { sorted: savedMistakeBooks } = useSavedMistakeBooks()
+const myRecordCount = computed(() => examRecords.value.length + savedMistakeBooks.value.length)
 const examForm = ref({ bank: '', duration: 60 })
 const examTypeCounts = ref({ '单选题': 40, '多选题': 30, '判断题': 30, '简答题': 10, '填空题': 10 })
 const availableBanks = ref([])
@@ -154,7 +161,27 @@ const startExam = () => {
   })
 }
 
+
+const closeUpdateNotice = () => {
+  showUpdateNotice.value = false
+  try { localStorage.setItem(UPDATE_NOTICE_KEY, UPDATE_NOTICE_VERSION) } catch { }
+}
+
+const onUpdateNoticeOpen = (open) => {
+  if (open) showUpdateNotice.value = true
+  else closeUpdateNotice()
+}
+
+const checkUpdateNotice = () => {
+  try {
+    showUpdateNotice.value = localStorage.getItem(UPDATE_NOTICE_KEY) !== UPDATE_NOTICE_VERSION
+  } catch {
+    showUpdateNotice.value = true
+  }
+}
+
 onMounted(() => {
+  checkUpdateNotice()
   console.log('[App] onMounted: 开始, isAiMode=', isAiMode.value)
   aiModeModule.checkConfig().then(() => {
     console.log('[App] checkConfig完成: isAiMode=', isAiMode.value, 'apiConfigured=', apiConfigured.value)
@@ -284,10 +311,32 @@ watch(hasStats, (v) => { if (v) leftOpen.value = true })
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           <span class="text-[11px]">我的</span>
-          <span v-if="examRecords.length" class="text-[9px] font-bold text-primary-foreground bg-primary min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">{{ examRecords.length }}</span>
+          <span v-if="myRecordCount" class="text-[9px] font-bold text-primary-foreground bg-primary min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">{{ myRecordCount }}</span>
         </Button>
       </div>
     </div>
+
+
+    <!-- 首次进入更新公告 -->
+    <Dialog :open="showUpdateNotice" @update:open="onUpdateNoticeOpen" class="sm:max-w-[460px] rounded-none">
+      <DialogHeader>
+        <DialogTitle>更新公告</DialogTitle>
+        <DialogDescription>本次更新加强了错题复盘和保存能力。</DialogDescription>
+      </DialogHeader>
+      <div class="space-y-3 text-sm leading-relaxed">
+        <div class="p-3 border border-border/60 bg-muted/30">
+          <p class="font-medium mb-1">错题备注</p>
+          <p class="text-xs text-muted-foreground">非速刷模式下，答错后可在解析下方填写备注，保存后会出现在错题本中。</p>
+        </div>
+        <div class="p-3 border border-border/60 bg-muted/30">
+          <p class="font-medium mb-1">错题本保存到「我的」</p>
+          <p class="text-xs text-muted-foreground">错题本新增保存按钮，保存后可在「我的」中展开查看题目、答案、解析与备注。</p>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button class="rounded-none" @click="closeUpdateNotice">知道了</Button>
+      </DialogFooter>
+    </Dialog>
 
     <!-- 考试弹窗 -->
     <Dialog :open="showExamDialog" @update:open="showExamDialog = $event" class="sm:max-w-[440px]">

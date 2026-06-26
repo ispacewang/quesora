@@ -140,6 +140,16 @@
             <span class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">解析</span>
             <KatexRender :text="lastResult.explanation" />
           </div>
+          <div v-if="!lastResult?.correct && !quickMode" class="p-4 border border-border/60 bg-background space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">我的备注</span>
+              <span v-if="noteSaved" class="text-[10px] text-success">已保存</span>
+            </div>
+            <Textarea v-model="mistakeNote" class="min-h-[72px] rounded-none text-xs" placeholder="写下这题为什么错、下次要注意什么…" @update:model-value="noteSaved = false" />
+            <div class="flex justify-end">
+              <Button size="sm" variant="outline" class="rounded-none" @click="saveMistakeNote">保存备注</Button>
+            </div>
+          </div>
         </div>
       </div>
       </div>
@@ -166,7 +176,7 @@ import KatexRender from './KatexRender.vue'
 import DiagramBoard from './DiagramBoard.vue'
 import { Zap, Ruler, Loader, Sparkles, Check, X, Shuffle } from 'lucide-vue-next'
 import * as api from '../api'
-import { getMistakeBook, removeQuestionFromMistakeBook, MISTAKE_BOOK_ID } from '../utils/mistakeBook'
+import { getMistakeBook, removeQuestionFromMistakeBook, updateMistakeNote, MISTAKE_BOOK_ID } from '../utils/mistakeBook'
 import { useAiMode } from '../composables/useAiMode'
 
 const { isAiMode, selectedModel } = useAiMode()
@@ -182,6 +192,8 @@ const loading = ref(false)
 const showResult = ref(false)
 const lastResult = ref(null)
 const lastMistakeIdx = ref(0)
+const mistakeNote = ref('')
+const noteSaved = ref(false)
 const aiJudging = ref(false)
 let loadRequestId = 0
 
@@ -207,6 +219,8 @@ const resetQuestionState = () => {
   userAnswer.value = ''
   showResult.value = false
   lastResult.value = null
+  mistakeNote.value = ''
+  noteSaved.value = false
 }
 
 function toggleTypeFilter(key) {
@@ -401,8 +415,9 @@ const submitAnswer = async () => {
     }
     lastResult.value = {
       correct, explanation, correctAnswer: answer,
-      questionData: { ...q, questionId: q.questionId || q.id, userAnswer: userAnswer.value, correctAnswer: answer, explanation },
+      questionData: { ...q, questionId: q.questionId || q.id, userAnswer: userAnswer.value, correctAnswer: answer, explanation, note: q.note || '' },
     }
+    mistakeNote.value = lastResult.value.questionData.note || ''
     showResult.value = true
     emit('answer-submitted', { isCorrect: correct, questionData: lastResult.value.questionData })
     if (isMistakeBook.value && correct) { removeQuestionFromMistakeBook(q.questionId); bankSelectorRef.value?.refreshBanks() }
@@ -410,6 +425,20 @@ const submitAnswer = async () => {
     // 速刷模式：自动跳下一题
     if (quickMode.value) setTimeout(() => loadQuestion(), 600)
   } catch { toast.error('提交失败') }
+}
+
+const saveMistakeNote = () => {
+  if (!lastResult.value || lastResult.value.correct || quickMode.value) return
+  const qd = lastResult.value.questionData
+  qd.note = mistakeNote.value.trim()
+  const updated = updateMistakeNote(qd.questionId, qd.note)
+  if (updated) {
+    lastResult.value.questionData = { ...qd, note: updated.note || '' }
+    noteSaved.value = true
+    toast.success('备注已保存到错题本')
+  } else {
+    toast.error('请先确认该题已加入错题本')
+  }
 }
 
 const nextQuestion = () => { loadQuestion() }

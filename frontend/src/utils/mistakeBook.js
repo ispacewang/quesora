@@ -27,11 +27,29 @@ function saveMistakeBook(book) {
  */
 export function addQuestionToMistakeBook(question) {
   const book = getMistakeBook();
-  const exists = book.some(item => item.questionId === question.questionId);
-  if (!exists) {
+  const idx = book.findIndex(item => item.questionId === question.questionId);
+  if (idx === -1) {
     book.unshift(question);
-    saveMistakeBook(book);
+  } else {
+    book[idx] = { ...book[idx], ...question, note: question.note ?? book[idx].note ?? '' };
   }
+  saveMistakeBook(book);
+}
+
+
+/**
+ * 更新错题备注
+ * @param {string} questionId - 题目 ID
+ * @param {string} note - 用户备注
+ * @returns {Object|null} 更新后的错题对象
+ */
+export function updateMistakeNote(questionId, note) {
+  const book = getMistakeBook();
+  const idx = book.findIndex(item => item.questionId === questionId);
+  if (idx === -1) return null;
+  book[idx] = { ...book[idx], note: note || '' };
+  saveMistakeBook(book);
+  return book[idx];
 }
 
 /**
