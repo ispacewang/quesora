@@ -40,6 +40,10 @@ export function shuffleOptions(options) {
 export function applyShuffle(q) {
   if (!q || !q.options || q.options.length <= 1) return q
   if (q.type === '简答题' || q.type === '填空题' || q.type === '判断题') return q
+  // 如果之前打过乱，先还原到原始顺序，避免二次打乱导致映射断裂
+  if (q._originalOptions) {
+    q.options = [...q._originalOptions]
+  }
   const { shuffled, map } = shuffleOptions(q.options)
   q._originalOptions = [...q.options]
   q.options = shuffled
