@@ -55,6 +55,7 @@
               <Shuffle class="size-3.5" /> 随机
             </Button>
             <Button size="xs" :variant="quickMode ? 'default' : 'outline'" @click="quickMode = !quickMode"><Zap class="size-3.5" /> 速刷</Button>
+            <Button size="xs" :variant="shuffleMode ? 'default' : 'outline'" @click="shuffleMode = !shuffleMode; loadQuestion()"><Shuffle class="size-3.5" /> 打乱</Button>
           </div>
         </div>
 
@@ -178,6 +179,7 @@ import { Zap, Ruler, Loader, Sparkles, Check, X, Shuffle } from 'lucide-vue-next
 import * as api from '../api'
 import { getMistakeBook, removeQuestionFromMistakeBook, updateMistakeNote, MISTAKE_BOOK_ID } from '../utils/mistakeBook'
 import { useAiMode } from '../composables/useAiMode'
+import { applyShuffle, toOriginalLetter, toDisplayAnswer } from '../lib/utils'
 
 const { isAiMode, selectedModel } = useAiMode()
 
@@ -187,6 +189,7 @@ const question = ref(null)
 const userAnswer = ref('')
 const orderMode = ref(true)
 const quickMode = ref(false)
+const shuffleMode = ref(true)
 const showPreview = ref(false)
 const loading = ref(false)
 const showResult = ref(false)
@@ -253,7 +256,7 @@ const isMultiChoice = computed(() => question.value?.type === '多选题')    //
 const isMistakeBook = computed(() => currentBank.value === MISTAKE_BOOK_ID)
 const isBaoMing = computed(() => question.value?.meta?.isBaoMing === true)
 
-const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．]\s*)+/, '')
+const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．（）—–\-]\s*)+/, '')
 const emptyDescription = computed(() => {
   if (!currentBank.value) return '选择一个题库开始答题'
   if (isMistakeBook.value) return '错题库为空'
@@ -261,21 +264,23 @@ const emptyDescription = computed(() => {
 })
 
 const correctAnswer = computed(() => lastResult.value?.correctAnswer || question.value?.correctAnswer || question.value?.answer || '')
-const fmtAnswer = computed(() => Array.isArray(correctAnswer.value) ? correctAnswer.value.join(', ') : correctAnswer.value)
+const fmtAnswer = computed(() => toDisplayAnswer(question.value, correctAnswer.value))
 
 const diagramConfig = computed(() => question.value?.meta?.diagram || null)
 const diagramSvg = computed(() => question.value?.meta?.diagramSvg || '')
 
-const isCorrectOption = (i) => showResult.value && correctAnswer.value.includes(String.fromCharCode(65 + i))
+const isCorrectOption = (i) => showResult.value && correctAnswer.value.includes(toOriginalLetter(question.value, i))
 const isWrongUserOption = (i) => {
   if (!showResult.value || lastResult.value?.correct) return false
-  const ua = userAnswer.value; const letter = String.fromCharCode(65 + i)
-  return isMultiChoice.value && Array.isArray(ua) ? ua.includes(letter) : ua === letter
+  const originalLetter = toOriginalLetter(question.value, i)
+  const ua = userAnswer.value
+  return isMultiChoice.value && Array.isArray(ua) ? ua.includes(originalLetter) : ua === originalLetter
 }
 
 const optionClass = (i) => {
   if (!showResult.value) {
-    const sel = isMultiChoice.value ? Array.isArray(userAnswer.value) && userAnswer.value.includes(String.fromCharCode(65 + i)) : userAnswer.value === String.fromCharCode(65 + i)
+    const origLetter = toOriginalLetter(question.value, i)
+    const sel = isMultiChoice.value ? Array.isArray(userAnswer.value) && userAnswer.value.includes(origLetter) : userAnswer.value === origLetter
     return sel ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/40 hover:bg-primary/[0.02]'
   }
   if (isCorrectOption(i)) return 'border-success/30 bg-success/[0.06] dark:bg-success/[0.12] dark:border-success/25'
@@ -284,7 +289,8 @@ const optionClass = (i) => {
 }
 const optionLetterClass = (i) => {
   if (!showResult.value) {
-    const sel = isMultiChoice.value ? Array.isArray(userAnswer.value) && userAnswer.value.includes(String.fromCharCode(65 + i)) : userAnswer.value === String.fromCharCode(65 + i)
+    const origLetter = toOriginalLetter(question.value, i)
+    const sel = isMultiChoice.value ? Array.isArray(userAnswer.value) && userAnswer.value.includes(origLetter) : userAnswer.value === origLetter
     return sel ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/25 text-muted-foreground'
   }
   if (isCorrectOption(i)) return 'bg-success border-success text-success-foreground'
@@ -344,10 +350,12 @@ const loadQuestion = async () => {
         q = filtered[Math.floor(Math.random() * filtered.length)]
       }
       question.value = { ...q, id: q.questionId }
+      if (shuffleMode.value) applyShuffle(question.value)
     } else {
       const res = await api.getQuestion(currentBank.value, orderMode.value, typeFilter.value.includes('all') ? null : [...typeFilter.value], baoMingOnly.value)
       if (requestId !== loadRequestId) return
       question.value = res.data
+      if (shuffleMode.value) applyShuffle(question.value)
     }
     resetQuestionState()
   } catch (e) {
@@ -372,7 +380,7 @@ const toggleOrderMode = () => { orderMode.value = !orderMode.value; loadQuestion
  * @param {number} i - 选项索引 (0=A, 1=B, ...)
  */
 const selectOption = (i) => {
-  const l = String.fromCharCode(65 + i)
+  const l = toOriginalLetter(question.value, i)
   if (isMultiChoice.value) {
     if (!Array.isArray(userAnswer.value)) userAnswer.value = []
     const a = [...userAnswer.value]; const p = a.indexOf(l)

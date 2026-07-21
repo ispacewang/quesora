@@ -28,20 +28,20 @@
           <div v-if="item.questionData.options?.length" class="flex flex-col gap-0.5 mb-2">
             <div v-for="(opt, j) in item.questionData.options" :key="j"
               class="text-[11px] px-1 py-0.5 flex gap-0.5"
-              :class="item.questionData.correctAnswer?.includes(String.fromCharCode(65 + j)) ? 'text-success font-medium' : 'text-muted-foreground'"
+              :class="item.questionData.correctAnswer?.includes(toOriginalLetter(item.questionData, j)) ? 'text-success font-medium' : 'text-muted-foreground'"
             >
-              <span class="font-semibold flex-shrink-0" :class="item.questionData.correctAnswer?.includes(String.fromCharCode(65 + j)) ? 'text-success' : 'text-muted-foreground'">{{ String.fromCharCode(65 + j) }}.</span>
+              <span class="font-semibold flex-shrink-0" :class="item.questionData.correctAnswer?.includes(toOriginalLetter(item.questionData, j)) ? 'text-success' : 'text-muted-foreground'">{{ String.fromCharCode(65 + j) }}.</span>
               <KatexRender :text="stripOpt(opt)" />
             </div>
           </div>
           <div class="flex flex-col gap-1 mb-2">
             <div class="flex items-center gap-1.5 text-xs">
               <span class="text-muted-foreground font-medium flex-shrink-0 min-w-[26px] text-[11px]">你的</span>
-              <span class="font-semibold text-[11px] px-1.5 py-0.5 border border-destructive/20 bg-destructive/5 text-destructive">{{ fmtAns(item.questionData.userAnswer) }}</span>
+              <span class="font-semibold text-[11px] px-1.5 py-0.5 border border-destructive/20 bg-destructive/5 text-destructive">{{ toDisplayAnswer(item.questionData, item.questionData.userAnswer) }}</span>
             </div>
             <div class="flex items-center gap-1.5 text-xs">
               <span class="text-muted-foreground font-medium flex-shrink-0 min-w-[26px] text-[11px]">正确</span>
-              <span class="font-semibold text-[11px] px-1.5 py-0.5 border border-success/20 bg-success/5 text-success">{{ fmtAns(item.questionData.correctAnswer) }}</span>
+              <span class="font-semibold text-[11px] px-1.5 py-0.5 border border-success/20 bg-success/5 text-success">{{ toDisplayAnswer(item.questionData, item.questionData.correctAnswer) }}</span>
             </div>
           </div>
           <div v-if="item.questionData.explanation" class="mt-1.5 p-2 bg-muted border-l-2 border-primary">
@@ -71,10 +71,11 @@ import { saveAs } from 'file-saver'
 import Button from './ui/Button.vue'
 import KatexRender from './KatexRender.vue'
 import DiagramBoard from './DiagramBoard.vue'
+import { toOriginalLetter, toDisplayAnswer } from '../lib/utils'
 const props = defineProps({ wrongAnswers: { type: Array, required: true, default: () => [] } })
 defineEmits(['clear'])
 const showExportMenu = ref(false)
-const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．]\s*)+/, '')
+const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．（）—–\-]\s*)+/, '')
 
 const fmtAns = (a) => Array.isArray(a) ? a.join(', ') : (a || '')
 
@@ -82,17 +83,17 @@ const genContent = (md) => {
   let c = md ? '# 错题本\n\n' : '--- 错题本 ---\n\n'
   props.wrongAnswers.forEach((item, i) => {
     const q = item.questionData
-    const ua = fmtAns(q.userAnswer), ca = fmtAns(q.correctAnswer)
+    const ua = toDisplayAnswer(q, q.userAnswer), ca = toDisplayAnswer(q, q.correctAnswer)
     if (md) {
       c += `## ${i + 1}. ${q.question}\n\n`
-      q.options?.forEach((o, j) => { c += `- ${String.fromCharCode(65 + j)}. ${o}\n` })
+      q.options?.forEach((o, j) => { c += `- ${String.fromCharCode(65 + j)}. ${stripOpt(o)}\n` })
       if (q.options?.length) c += '\n'
       c += `**你的答案：** \`${ua}\`\n**正确答案：** \`${ca}\`\n\n`
       if (q.explanation) c += `> **解析**\n> ${q.explanation}\n\n`
       c += '---\n\n'
     } else {
       c += `${i + 1}. ${q.question}\n`
-      q.options?.forEach((o, j) => { c += `   ${String.fromCharCode(65 + j)}. ${o}\n` })
+      q.options?.forEach((o, j) => { c += `   ${String.fromCharCode(65 + j)}. ${stripOpt(o)}\n` })
       c += `\n你的答案：${ua}\n正确答案：${ca}\n`
       if (q.explanation) c += `【解析】${q.explanation}\n`
       c += `\n${'='.repeat(32)}\n\n`
