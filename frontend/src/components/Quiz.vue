@@ -166,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import { toast } from 'vue-sonner'
 import Badge from './ui/Badge.vue'
@@ -488,6 +488,35 @@ const aiJudgeQuestion = async () => {
     aiJudging.value = false
   }
 }
+
+/** 速刷模式快捷键 */
+const onQuizKeydown = (e) => {
+  if (!quickMode.value || !question.value || !currentBank.value) return
+  // 不在输入框内才响应
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+  const key = e.key.toUpperCase()
+  const isChoice = question.value.type !== '简答题' && question.value.type !== '填空题'
+
+  // 已显示结果 → 空格 = 下一题
+  if (showResult.value) {
+    if (e.code === 'Space') { e.preventDefault(); loadQuestion() }
+    return
+  }
+
+  // 选择题：A-Z 选选项
+  if (isChoice && /^[A-Z]$/.test(key)) {
+    const max = (question.value.options?.length || 0) - 1
+    const idx = key.charCodeAt(0) - 65
+    if (idx >= 0 && idx <= max) { e.preventDefault(); selectOption(idx) }
+    return
+  }
+
+  // 空格 = 提交
+  if (e.code === 'Space' && canSubmit.value) { e.preventDefault(); submitAnswer() }
+}
+
+onMounted(() => document.addEventListener('keydown', onQuizKeydown))
+onUnmounted(() => document.removeEventListener('keydown', onQuizKeydown))
 
 defineExpose({ refreshBanks: () => bankSelectorRef.value?.refreshBanks() })
 </script>
