@@ -345,14 +345,14 @@
                 class="text-xs px-2.5 py-1.5 border border-transparent flex items-center gap-2.5"
                 :class="{
                   'border-success/30 bg-success/[0.06] dark:bg-success/[0.10]': wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
-                  'border-destructive/30 bg-destructive/[0.06] dark:bg-destructive/[0.08]': answers[wi] === toOriginalLetter(questions[wi], j) && !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
+                  'border-destructive/30 bg-destructive/[0.06] dark:bg-destructive/[0.08]': isAnswerSelected(wi, j) && !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
                 }"
               >
                 <span class="w-5 h-5 flex items-center justify-center border text-[10px] font-semibold flex-shrink-0"
                   :class="{
                     'border-success bg-success text-success-foreground': wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
-                    'border-destructive bg-destructive text-destructive-foreground': answers[wi] === toOriginalLetter(questions[wi], j) && !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
-                    'border-border text-muted-foreground': !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)) && answers[wi] !== toOriginalLetter(questions[wi], j),
+                    'border-destructive bg-destructive text-destructive-foreground': isAnswerSelected(wi, j) && !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
+                    'border-border text-muted-foreground': !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)) && !isAnswerSelected(wi, j),
                   }"
                 >{{ String.fromCharCode(65 + j) }}</span>
                 <KatexRender class="text-xs" :text="stripOpt(opt)" />
@@ -600,6 +600,13 @@ const confirmSubmit = () => {
 };
 
 const fmtAns = (a, q) => toDisplayAnswer(q, a) || "";
+
+/** 多选题兼容：判断用户是否选了某选项 */
+const isAnswerSelected = (wi, j) => {
+  const ans = answers.value[wi]
+  const letter = toOriginalLetter(questions.value[wi], j)
+  return Array.isArray(ans) ? ans.includes(letter) : ans === letter
+}
 
 /**
  * 交卷判分：逐题提交答案，统计正确/错误，满分时触发碎屑动画
