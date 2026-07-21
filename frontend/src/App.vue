@@ -30,7 +30,7 @@ const quizRef = ref(null)
 const quizStats = ref({ correct: 0, incorrect: 0, byType: {} })
 const wrongAnswers = ref([])
 
-const UPDATE_NOTICE_VERSION = '2026-06-26-wrong-note-save'
+const UPDATE_NOTICE_VERSION = '2026-07-21-shuffle-keyboard'
 const UPDATE_NOTICE_KEY = 'quesora-update-notice-version'
 const showUpdateNotice = ref(false)
 
@@ -320,17 +320,17 @@ watch(hasStats, (v) => { if (v) leftOpen.value = true })
     <!-- 首次进入更新公告 -->
     <Dialog :open="showUpdateNotice" @update:open="onUpdateNoticeOpen" class="sm:max-w-[460px] rounded-none">
       <DialogHeader>
-        <DialogTitle>更新公告</DialogTitle>
-        <DialogDescription>本次更新加强了错题复盘和保存能力。</DialogDescription>
+        <DialogTitle>更新公告 v2.6</DialogTitle>
+        <DialogDescription>刷题、考试体验升级。</DialogDescription>
       </DialogHeader>
       <div class="space-y-3 text-sm leading-relaxed">
         <div class="p-3 border border-border/60 bg-muted/30">
-          <p class="font-medium mb-1">错题备注</p>
-          <p class="text-xs text-muted-foreground">非速刷模式下，答错后可在解析下方填写备注，保存后会出现在错题本中。</p>
+          <p class="font-medium mb-1">🎲 选项随机打乱</p>
+          <p class="text-xs text-muted-foreground">刷题和考试模式下，选择题选项自动打乱顺序（判断/简答/填空除外），判题自动映射保证正确。</p>
         </div>
         <div class="p-3 border border-border/60 bg-muted/30">
-          <p class="font-medium mb-1">错题本保存到「我的」</p>
-          <p class="text-xs text-muted-foreground">错题本新增保存按钮，保存后可在「我的」中展开查看题目、答案、解析与备注。</p>
+          <p class="font-medium mb-1">⌨️ 速刷快捷键</p>
+          <p class="text-xs text-muted-foreground">速刷模式下，按 <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">A</kbd> <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">B</kbd> <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">C</kbd> <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">D</kbd> 选选项，<kbd class="px-1 py-0.5 bg-border/30 text-[11px]">空格</kbd> 提交，流畅刷题。</p>
         </div>
       </div>
       <DialogFooter>
