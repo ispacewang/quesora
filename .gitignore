@@ -4,3 +4,8 @@ dist
 models
 .vscode
 .DS_StoreMSIX-GUIDE.md
+i.json
+m.json
+generate_tiles.py
+test-cert.pfx
+wc.json

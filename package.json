@@ -1,6 +1,6 @@
 {
   "name": "quesora",
-  "version": "2.5.9",
+  "version": "2.6.0",
   "description": "答题，刷题，考试，AI生题，AI判题",
   "main": "main.js",
   "productName": "Quesora",
@@ -17,7 +17,7 @@
     "icon": "frontend/public/icon-512x512.png",
     "publish": {
       "provider": "generic",
-      "url": "http://10.13.20.11:3000/ispacewang/question/releases/download/v2.5.8"
+      "url": "http://10.13.20.11:3000/ispacewang/question/releases/download/v2.6.0"
     },
     "directories": {
       "output": "release/"
