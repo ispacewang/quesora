@@ -39,7 +39,7 @@ export function shuffleOptions(options) {
  */
 export function applyShuffle(q) {
   if (!q || !q.options || q.options.length <= 1) return q
-  if (q.type === '简答题' || q.type === '填空题') return q
+  if (q.type === '简答题' || q.type === '填空题' || q.type === '判断题') return q
   const { shuffled, map } = shuffleOptions(q.options)
   q._originalOptions = [...q.options]
   q.options = shuffled
