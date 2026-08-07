@@ -443,6 +443,8 @@ import AlertDialog from "./ui/AlertDialog.vue";
 import KatexRender from "./KatexRender.vue";
 import DiagramBoard from "./DiagramBoard.vue";
 import * as api from "../api";
+import { logAnswer } from "../utils/answerLog";
+import { computeKeywords } from "../utils/keywords";
 import { useExamHistory } from "../composables/useExamHistory";
 import axios from "axios";
 import { Star, Ruler, Trophy, ThumbsUp, TrendingUp } from 'lucide-vue-next'
@@ -644,10 +646,12 @@ const submitExam = async () => {
     if (r.data?.correct) {
       cc++;
       cr.add(i);
+      logAnswer({ questionId: q.id, bank: props.examInfo.bank, type: q.type, correct: true, meta: q.meta || {}, kw: computeKeywords(q, r.data.answer) });
     } else {
       wr.add(i);
       if (q.meta?.isBaoMing === true) failedBaoMing = true;
       if (r.data) wd[i] = { answer: r.data.answer, explanation: r.data.explanation };
+      logAnswer({ questionId: q.id, bank: props.examInfo.bank, type: q.type, correct: false, meta: q.meta || {}, kw: computeKeywords(q, r.data.answer) });
     }
   }
   score.value = failedBaoMing ? 0 : cc;
