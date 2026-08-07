@@ -242,6 +242,8 @@ function createServer(userDataPath) {
   });
 
   const currentProgress = new Map();
+  // 随机模式：每个筛选组合维护一个打乱的索引队列，出队取题，队列耗尽才重新打乱，避免重复出题
+  const randomQueues = new Map();
   // ─── 答题模式：顺序/随机获取单题 ───
   app.get("/question", (req, res) => {
     const { bankName, types } = req.query;
@@ -275,6 +277,7 @@ function createServer(userDataPath) {
       }
 
       let q;
+      let finished = false; // 是否为当前筛选池的最后一道题（答完可提示重来/退出）
       if (order) {
         const allQuestions = db
           .prepare(`SELECT * FROM questions WHERE bank_id = ? AND ${typeFilter} ORDER BY id ASC`)
@@ -300,6 +303,7 @@ function createServer(userDataPath) {
         }
 
         q = candidates[nextIndex];
+        finished = nextIndex === candidates.length - 1;
 
         currentProgress.set(progressKey, nextIndex);
       } else {
@@ -316,8 +320,21 @@ function createServer(userDataPath) {
         if (!candidates || candidates.length === 0) {
           return res.status(400).json({ error: "题库为空" });
         }
-        const idx = Math.floor(Math.random() * candidates.length);
+        const progressKey = `${bankId}:${typeKey}:${baoMingOnly}`;
+        // 复用/重建打乱队列：队列耗尽或池子数量变化时重新打乱（poolLen 记录构建时的池子大小）
+        let entry = randomQueues.get(progressKey);
+        if (!entry || entry.q.length === 0 || entry.poolLen !== candidates.length) {
+          const q = candidates.map((_, i) => i);
+          for (let i = q.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [q[i], q[j]] = [q[j], q[i]];
+          }
+          entry = { q, poolLen: candidates.length };
+          randomQueues.set(progressKey, entry);
+        }
+        const idx = entry.q.pop();
         q = candidates[idx];
+        finished = entry.q.length === 0;
       }
 
       if (!q) {
@@ -330,6 +347,7 @@ function createServer(userDataPath) {
         options: JSON.parse(q.options),
         type: q.type,
         meta: q.meta ? JSON.parse(q.meta) : {},
+        finished,
       });
     } catch (err) {
       res.status(500).json({ error: err.message });

@@ -67,7 +67,7 @@
                 {{ questions[qi].type }}
               </div>
               <div
-                class="flex items-center justify-center w-[28px] h-[28px] text-[11px] font-medium cursor-pointer border rounded transition-all duration-150"
+                class="relative flex items-center justify-center w-[28px] h-[28px] text-[11px] font-medium cursor-pointer border rounded transition-all duration-150"
                 :class="{
                   'bg-primary text-primary-foreground border-primary font-bold':
                     qi === currentIdx,
@@ -80,6 +80,13 @@
                 @click="goTo(qi)"
               >
                 {{ qi + 1 }}
+                <img
+                  v-if="questions[qi].meta?.isBaoMing === true"
+                  src="/baoming-shield-32.png"
+                  alt="保命题"
+                  title="保命题"
+                  class="absolute -top-1 -right-1 w-3.5 h-3.5 dark:invert"
+                />
               </div>
             </template>
           </div>
@@ -96,6 +103,7 @@
                 >第 {{ currentIdx + 1 }} 题</span
               >
               <Badge variant="default">{{ questions[currentIdx].type }}</Badge>
+              <Badge v-if="questions[currentIdx].meta?.isBaoMing === true" variant="destructive">保命题</Badge>
               <Badge v-if="questions[currentIdx].meta?.['题目分类']" variant="success">{{
                 questions[currentIdx].meta["题目分类"]
               }}</Badge>

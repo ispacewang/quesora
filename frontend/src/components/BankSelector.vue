@@ -300,6 +300,13 @@ const selectBank = (id) => {
   else { selectedBank.value = id; emit('bank-change', id) }
 }
 
+/** 取消当前选中的题库（用于刷题完整体验后的“退出”） */
+const clearSelection = () => {
+  if (!selectedBank.value) return
+  selectedBank.value = ''
+  emit('bank-change', '')
+}
+
 const onDrop = (e) => { dragOver.value = false; const file = e.dataTransfer?.files?.[0]; if (file) doUpload(file) }
 
 /** 下载题库模板 Excel 文件 */
@@ -357,7 +364,7 @@ const clearMistakeBank = () => {
 }
 
 onMounted(fetchAll)
-defineExpose({ refreshBanks: fetchAll })
+defineExpose({ refreshBanks: fetchAll, clearSelection })
 </script>
 
 <style>
