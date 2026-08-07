@@ -8,6 +8,7 @@ import { addQuestionToMistakeBook } from './utils/mistakeBook'
 import AppTour from './components/AppTour.vue'
 import Quiz from './components/Quiz.vue'
 import StatsPanel from './components/StatsPanel.vue'
+import PatternPanel from './components/PatternPanel.vue'
 import WrongAnswerPanel from './components/WrongAnswerPanel.vue'
 import Exam from './components/Exam.vue'
 import TitleBar from './components/TitleBar.vue'
@@ -42,6 +43,7 @@ const examInfo = ref(null)
 // 侧栏
 const leftOpen = ref(false)
 const rightOpen = ref(false)
+const leftTab = ref('stats')
 const hasStats = computed(() => quizStats.value.correct + quizStats.value.incorrect > 0)
 const hasWrong = computed(() => wrongAnswers.value.length > 0)
 const toggleLeft = () => { leftOpen.value = !leftOpen.value }
@@ -400,8 +402,24 @@ watch(hasStats, (v) => { if (v) leftOpen.value = true })
     <!-- 刷题模式 -->
     <div v-else class="flex-1 flex min-h-0 relative">
       <Transition name="panel-slide">
-        <div v-if="leftOpen" class="w-[260px] border-r border-border/50 overflow-y-auto flex-shrink-0 bg-background" data-tour="stats">
-          <StatsPanel :stats="quizStats" />
+        <div v-if="leftOpen" class="w-[260px] border-r border-border/50 flex flex-col flex-shrink-0 bg-background" data-tour="stats">
+          <!-- 左侧面板标签：统计 / 错题规律 -->
+          <div class="flex border-b border-border/50 flex-shrink-0">
+            <button
+              @click="leftTab = 'stats'"
+              class="flex-1 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px"
+              :class="leftTab === 'stats' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'"
+            >统计</button>
+            <button
+              @click="leftTab = 'patterns'"
+              class="flex-1 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px"
+              :class="leftTab === 'patterns' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'"
+            >错题规律</button>
+          </div>
+          <div class="flex-1 overflow-y-auto min-h-0">
+            <StatsPanel v-if="leftTab === 'stats'" :stats="quizStats" />
+            <PatternPanel v-else />
+          </div>
         </div>
       </Transition>
 

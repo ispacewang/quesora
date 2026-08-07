@@ -439,6 +439,8 @@ import {
     updateMistakeNote,
     MISTAKE_BOOK_ID,
 } from "../utils/mistakeBook";
+import { logAnswer } from "../utils/answerLog";
+import { computeKeywords } from "../utils/keywords";
 import { useAiMode } from "../composables/useAiMode";
 import { applyShuffle, toOriginalLetter, toDisplayAnswer } from "../lib/utils";
 
@@ -812,6 +814,14 @@ const submitAnswer = async () => {
             questionData: lastResult.value.questionData,
         });
         applyBaoResultAnim(correct);
+        logAnswer({
+            questionId: q.questionId || q.id,
+            bank: currentBank.value,
+            type: q.type,
+            correct,
+            meta: q.meta || {},
+            kw: computeKeywords(q, answer),
+        });
         if (isMistakeBook.value && correct) {
             removeQuestionFromMistakeBook(q.questionId);
             bankSelectorRef.value?.refreshBanks();
@@ -902,6 +912,14 @@ const aiJudgeQuestion = async () => {
             questionData: lastResult.value.questionData,
         });
         applyBaoResultAnim(!!correct);
+        logAnswer({
+            questionId: question.value.questionId || question.value.id,
+            bank: currentBank.value,
+            type: question.value.type,
+            correct: !!correct,
+            meta: question.value.meta || {},
+            kw: computeKeywords(question.value, stdAnswer),
+        });
     } catch (e) {
         const msg = e.response?.data?.error || "AI 判题失败，请检查 API Key";
         toast.error(msg);
@@ -953,7 +971,7 @@ defineExpose({ refreshBanks: () => bankSelectorRef.value?.refreshBanks() });
 </script>
 
 <style>
-.bao-ming-card {
+/*.bao-ming-card {
     border: 2px solid transparent;
     background-origin: border-box;
     background-clip: padding-box, border-box;
@@ -970,7 +988,7 @@ defineExpose({ refreshBanks: () => bankSelectorRef.value?.refreshBanks() });
         0 0,
         0 0;
     animation: bao-ming-marquee 4s linear infinite;
-}
+}*/
 @keyframes bao-ming-marquee {
     0% {
         background-position:
