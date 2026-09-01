@@ -130,7 +130,7 @@
       <DialogHeader>
         <DialogTitle>上传题库</DialogTitle>
         <DialogDescription>
-          支持 Excel/CSV，表头：题型、题干、选项、答案、解析
+          支持 Excel/CSV，题型包括单选、多选、判断、简答、填空；表头：题型、题干、选项、答案、解析
           <button
             @click="downloadTemplate"
             class="text-primary underline underline-offset-2 hover:text-primary/80 cursor-pointer"
