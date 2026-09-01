@@ -147,6 +147,7 @@
                                     }}</span
                                 >
                                 <button
+                                    type="button"
                                     @click="showPreview = !showPreview"
                                     class="text-[11px] px-2 py-0.5 border transition-colors"
                                     :class="
@@ -155,10 +156,10 @@
                                             : 'border-transparent text-muted-foreground hover:text-foreground'
                                     "
                                 >
-                                    <Ruler
+                                    <Eye
                                         class="size-3.5 inline-block -mt-0.5"
                                     />
-                                    预览公式
+                                    预览
                                 </button>
                             </div>
                             <Textarea
@@ -166,8 +167,8 @@
                                 :rows="4"
                                 :placeholder="
                                     isShortAnswer
-                                        ? '输入你的答案...（支持 $公式$ 语法）'
-                                        : '输入正确答案...（支持 $公式$ 语法）'
+                                        ? '输入你的答案...'
+                                        : '输入正确答案...'
                                 "
                             />
                             <div
@@ -289,7 +290,7 @@
                             {{ quickMode ? "提交并继续 →" : "提交答案" }}
                         </Button>
                         <button
-                            v-if="!showResult && (isShortAnswer || isFillBlank)"
+                            v-if="showAiJudgeButton"
                             @click="aiJudgeQuestion"
                             :disabled="!userAnswer || aiJudging"
                             class="liquid-btn inline-flex items-center px-3 py-1.5 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
@@ -444,7 +445,7 @@ import KatexRender from "./KatexRender.vue";
 import DiagramBoard from "./DiagramBoard.vue";
 import {
     Zap,
-    Ruler,
+    Eye,
     Loader,
     Sparkles,
     Check,
@@ -464,8 +465,9 @@ import { useAiMode } from "../composables/useAiMode";
 import { applyShuffle, toOriginalLetter, toDisplayAnswer } from "../lib/utils";
 import { judgeAnswer } from "../utils/answerJudge";
 import { getOptionLetters, toggleAllOptions } from "../utils/multiSelect";
+import { shouldShowAiJudgeButton } from "../utils/quizUi";
 
-const { selectedModel } = useAiMode();
+const { isAiMode, selectedModel } = useAiMode();
 
 const bankSelectorRef = ref(null);
 const currentBank = ref("");
@@ -557,6 +559,12 @@ const isFillBlank = computed(() => question.value?.type === "填空题"); // 填
 const isMultiChoice = computed(() => question.value?.type === "多选题"); // 多选题支持多选字母
 const isMistakeBook = computed(() => currentBank.value === MISTAKE_BOOK_ID);
 const isBaoMing = computed(() => question.value?.meta?.isBaoMing === true);
+const showAiJudgeButton = computed(() => shouldShowAiJudgeButton({
+    aiMode: isAiMode.value,
+    shortAnswer: isShortAnswer.value,
+    fillBlank: isFillBlank.value,
+    showResult: showResult.value,
+}));
 const allOptionsSelected = computed(() => {
     if (!isMultiChoice.value || !Array.isArray(userAnswer.value)) return false;
     const letters = getOptionLetters(question.value);
