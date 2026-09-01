@@ -184,6 +184,25 @@
                             class="bao-options-stage flex-1 min-w-0"
                             :class="{ 'bao-options-stage--active': isBaoMing }"
                         >
+                            <div
+                                v-if="isMultiChoice && question.options?.length && !showResult"
+                                class="flex items-center justify-between mb-2 px-0.5"
+                            >
+                                <span class="text-[10px] text-muted-foreground uppercase tracking-wider">
+                                    多选题 · 可多选
+                                </span>
+                                <button
+                                    type="button"
+                                    @click="toggleAllMultiOptions"
+                                    :aria-pressed="allOptionsSelected"
+                                    class="text-[11px] px-2 py-0.5 border transition-colors"
+                                    :class="allOptionsSelected
+                                        ? 'border-primary/40 bg-primary/10 text-primary'
+                                        : 'border-transparent text-muted-foreground hover:border-primary/40 hover:text-primary'"
+                                >
+                                    {{ allOptionsSelected ? "取消全选" : "一键全选" }}
+                                </button>
+                            </div>
                             <!-- 选项主体：层级高于死神，用自身背景把死神遮在后面 -->
                             <div
                                 class="bao-options-panel flex flex-col gap-1.5"
@@ -443,8 +462,10 @@ import { logAnswer } from "../utils/answerLog";
 import { computeKeywords } from "../utils/keywords";
 import { useAiMode } from "../composables/useAiMode";
 import { applyShuffle, toOriginalLetter, toDisplayAnswer } from "../lib/utils";
+import { judgeAnswer } from "../utils/answerJudge";
+import { getOptionLetters, toggleAllOptions } from "../utils/multiSelect";
 
-const { isAiMode, selectedModel } = useAiMode();
+const { selectedModel } = useAiMode();
 
 const bankSelectorRef = ref(null);
 const currentBank = ref("");
@@ -471,15 +492,11 @@ let mistakeRandomQueue = [];
 let mistakeRandomPoolLen = 0;
 
 // 题型筛选 — "全部" 等同于不过滤
-const ALL_TYPES = ["单选题", "多选题", "判断题"];
+const ALL_TYPES = ["单选题", "多选题", "判断题", "简答题", "填空题"];
 const typeFilters = computed(() => {
     const base = [{ key: "all", label: "全部" }];
-    for (const t of ALL_TYPES) base.push({ key: t, label: t });
-    if (isAiMode.value) {
-        base.push(
-            { key: "简答题", label: "简答" },
-            { key: "填空题", label: "填空" },
-        );
+    for (const t of ALL_TYPES) {
+        base.push({ key: t, label: t === "简答题" ? "简答" : t === "填空题" ? "填空" : t });
     }
     return base;
 });
@@ -529,12 +546,22 @@ function toggleTypeFilter(key) {
 
 const emit = defineEmits(["answer-submitted", "bank-changed"]);
 
-const canSubmit = computed(() => !!userAnswer.value && !showResult.value); // 有答案且未显示结果时可提交
+const canSubmit = computed(() => {
+    const hasAnswer = Array.isArray(userAnswer.value)
+        ? userAnswer.value.length > 0
+        : String(userAnswer.value || "").trim().length > 0;
+    return hasAnswer && !showResult.value;
+});
 const isShortAnswer = computed(() => question.value?.type === "简答题"); // 简答题需文本框输入
 const isFillBlank = computed(() => question.value?.type === "填空题"); // 填空题需文本框输入
 const isMultiChoice = computed(() => question.value?.type === "多选题"); // 多选题支持多选字母
 const isMistakeBook = computed(() => currentBank.value === MISTAKE_BOOK_ID);
 const isBaoMing = computed(() => question.value?.meta?.isBaoMing === true);
+const allOptionsSelected = computed(() => {
+    if (!isMultiChoice.value || !Array.isArray(userAnswer.value)) return false;
+    const letters = getOptionLetters(question.value);
+    return letters.length > 0 && letters.every((letter) => userAnswer.value.includes(letter));
+});
 
 const stripOpt = (s) =>
     (s || "").replace(/^(?:[A-Za-z]\s*[.、)）：:．（）—–\-]\s*)+/, "");
@@ -732,33 +759,23 @@ const selectOption = (i) => {
     }
 };
 
+const toggleAllMultiOptions = () => {
+    if (!isMultiChoice.value || showResult.value) return;
+    userAnswer.value = toggleAllOptions(question.value, userAnswer.value);
+};
+
 /**
- * 本地判题（错题库用），支持单选/多选答案比对
+ * 本地判题（错题库用），支持选择题和简答/填空题答案比对
  * @param {Object} q - 题目对象
  * @param {string|string[]} ua - 用户答案
  * @returns {boolean} 是否正确
  */
 const checkLocalAnswer = (q, ua) => {
-    const answer = q.correctAnswer || q.answer || "";
-    if (q.type === "多选题") {
-        const std = answer
-            .replace(/,/g, "")
-            .split("")
-            .map((s) => s.trim().toUpperCase())
-            .filter(Boolean)
-            .sort();
-        const usr = (Array.isArray(ua) ? ua : [ua])
-            .map((s) => String(s).trim().toUpperCase())
-            .filter(Boolean)
-            .sort();
-        return JSON.stringify(std) === JSON.stringify(usr);
-    }
-    return (
-        answer.trim().toUpperCase() ===
-        String(ua || "")
-            .trim()
-            .toUpperCase()
-    );
+    return judgeAnswer({
+        type: q.type,
+        standardAnswer: q.correctAnswer || q.answer || "",
+        userAnswer: ua,
+    });
 };
 
 /**
