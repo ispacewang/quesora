@@ -8,6 +8,8 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const db = require("./db");
+const { judgeAnswer } = require("./question-judge");
+const { buildQuestionTypeFilter } = require("./question-types");
 
 /**
  * 解析 Excel/CSV 题库文件，返回标准化题目数组
@@ -259,22 +261,9 @@ function createServer(userDataPath) {
       if (!bankRow) return res.status(400).json({ error: "题库不存在" });
       const bankId = bankRow.id;
 
-      // 题型过滤
-      const allowedTypes = new Set(['单选题', '多选题', '判断题', '简答题', '填空题']);
-      let typeFilter = "type != ?";
-      let typeArgs = ['简答题'];
-      let typeKey = 'default';
-      if (types) {
-        const typeList = types
-          .split(',')
-          .map(t => t.trim())
-          .filter(t => allowedTypes.has(t));
-        if (typeList.length > 0) {
-          typeKey = typeList.slice().sort().join('|');
-          typeFilter = `type IN (${typeList.map(() => '?').join(',')})`;
-          typeArgs = typeList;
-        }
-      }
+      // 题型过滤：不指定时包含全部导入题型（含简答题/填空题）
+      const { sql: typeFilter, args: typeArgs, key: typeKey } =
+        buildQuestionTypeFilter(types);
 
       let q;
       let finished = false; // 是否为当前筛选池的最后一道题（答完可提示重来/退出）
@@ -368,31 +357,11 @@ function createServer(userDataPath) {
         return res.status(404).json({ error: "题目不存在" });
       }
 
-      let correct = false;
-      switch (q.type) {
-        case "多选题": {
-          const stdArr = q.answer
-            .replace(/,/g, "")
-            .split("")
-            .map((s) => s.trim().toUpperCase())
-            .filter(Boolean)
-            .sort();
-          const usrArr = (Array.isArray(userAnswer) ? userAnswer : [userAnswer])
-            .map((s) => String(s).trim().toUpperCase())
-            .filter(Boolean)
-            .sort();
-          correct = JSON.stringify(stdArr) === JSON.stringify(usrArr);
-          break;
-        }
-        case "判断题":
-        case "单选题":
-        default: {
-          correct =
-            q.answer.trim().toUpperCase() ===
-            String(userAnswer).trim().toUpperCase();
-          break;
-        }
-      }
+      const correct = judgeAnswer({
+        type: q.type,
+        standardAnswer: q.answer,
+        userAnswer,
+      });
       res.json({ correct, explanation: q.explanation, answer: q.answer });
     } catch (err) {
       res.status(500).json({ error: err.message });
