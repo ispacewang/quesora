@@ -16,13 +16,14 @@
 
 ## 功能特性
 
-- 📤 **题库上传** — 支持 Excel / CSV 文件导入，自动解析题目（单选/多选/判断/简答/填空）
-- 📝 **答题模式** — Bento 风格三栏布局（统计｜答题｜错题），题型筛选，实时进度
+- 📤 **题库上传** — 支持 Excel / CSV 文件导入，自动解析题目（单选/多选/判断/简答/填空）；多 sheet 文件按 sheet 分别生成题库
+- 📝 **答题模式** — Bento 风格三栏布局（统计｜答题｜错题），题型筛选（选中项上方显示该类题量，按住 Shift 全显），实时进度
 - 📊 **考试模式** — 自定义组卷（题型数量配置），计时考试，成绩统计
-- 🤖 **AI 生成题目** — 接入 DeepSeek API，一键生成各类型题目（5 种题型）
+- 🤖 **AI 生成题目** — 接入 DeepSeek API，一键生成各类型题目（5 种题型）；可上传附件（Word / Excel / PDF / txt / md / csv），由 markitdown 转成 Markdown 后依据资料出题
 - 🎯 **AI 智能判题** — 主观题（简答/填空）AI 自动判分，支持多模型切换
 - 📈 **统计面板** — Chart.js 答题统计（Doughnut + 横向 Bar 图）
 - 📕 **错题本** — 答题错题自动收集，支持按类型筛选和回顾
+- 🔄 **自动更新** — 基于 electron-updater，从 GitHub Releases 拉取最新安装包
 - 🌙 **深色模式** — 低饱和度柔和配色，圆形扩散动画切换
 - 🪟 **Frameless 窗口** — Mica 磨玻璃标题栏，自定义窗口控制（最小化/最大化/关闭）
 - 🧭 **功能引导** — driver.js 新手引导，分步介绍核心功能
@@ -70,6 +71,21 @@ yarn build:win
 ```
 
 构建产物输出到 `release/` 目录。
+
+### 发布新版本（自动更新依赖）
+
+自动更新从 **GitHub Releases** 读取，因此每个版本都必须把安装包和 `latest.yml` 一起挂到 Release 上：
+
+```bash
+# 方式一：本地打包并直接发布（需要带 repo 权限的 GitHub Token）
+GH_TOKEN=<你的 token> yarn build:win --publish always
+
+# 方式二：推 tag 交给 GitHub Actions 自动构建 + 发布
+git tag v2.7.0 && git push origin v2.7.0
+```
+
+electron-builder 会上传 `Quesora-Setup-<版本>.exe`、`.blockmap` 和 `latest.yml`，客户端据此判断是否有新版本。
+（临时切换到内网静态源可在启动时设置 `QUESORA_UPDATE_URL` 指向含 `latest.yml` 的目录。）
 
 ### 配置 AI 功能
 
