@@ -3,6 +3,7 @@ node_modules
 dist
 models
 .vscode
+ai-config.json
 .DS_StoreMSIX-GUIDE.md
 i.json
 m.json
