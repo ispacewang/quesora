@@ -82,9 +82,9 @@
                 {{ qi + 1 }}
                 <img
                   v-if="questions[qi].meta?.isBaoMing === true"
-                  src="/baoming-shield-32.png"
-                  alt="保命题"
-                  title="保命题"
+                  src="/zhongyao-shield-32.png"
+                  alt="重要题目"
+                  title="重要题目"
                   class="absolute -top-1 -right-1 w-3.5 h-3.5 dark:invert"
                 />
               </div>
@@ -103,7 +103,7 @@
                 >第 {{ currentIdx + 1 }} 题</span
               >
               <Badge variant="default">{{ questions[currentIdx].type }}</Badge>
-              <Badge v-if="questions[currentIdx].meta?.isBaoMing === true" variant="destructive">保命题</Badge>
+              <Badge v-if="questions[currentIdx].meta?.isBaoMing === true" variant="destructive">重要题目</Badge>
               <Badge v-if="questions[currentIdx].meta?.['题目分类']" variant="success">{{
                 questions[currentIdx].meta["题目分类"]
               }}</Badge>
@@ -298,7 +298,7 @@
             正确率 {{ Math.round(score / questions.length * 100) }}% · 答对 {{ correctSet.size }} 题 · 答错 {{ wrongSet.size }} 题
           </p>
           <p v-if="hasFailedBaoMing" class="mt-2 text-xs font-medium text-destructive">
-            保命题答错，综合成绩按 0 分计
+            重要题目答错，综合成绩按 0 分计
           </p>
         </div>
 
@@ -331,7 +331,7 @@
             <div class="flex items-center gap-2">
               <span class="text-xs font-bold text-muted-foreground w-6 tabular-nums">{{ wi + 1 }}</span>
               <Badge variant="outline">{{ questions[wi].type }}</Badge>
-              <Badge v-if="isBaoMingQuestion(wi)" variant="destructive">保命题</Badge>
+              <Badge v-if="isBaoMingQuestion(wi)" variant="destructive">重要题目</Badge>
             </div>
 
             <!-- 题干 -->
@@ -443,8 +443,6 @@ import AlertDialog from "./ui/AlertDialog.vue";
 import KatexRender from "./KatexRender.vue";
 import DiagramBoard from "./DiagramBoard.vue";
 import * as api from "../api";
-import { logAnswer } from "../utils/answerLog";
-import { computeKeywords } from "../utils/keywords";
 import { useExamHistory } from "../composables/useExamHistory";
 import axios from "axios";
 import { Star, Ruler, Trophy, ThumbsUp, TrendingUp } from 'lucide-vue-next'
@@ -496,7 +494,7 @@ const isBaoMingQuestion = (index) => questions.value[index]?.meta?.isBaoMing ===
 
 /** 等级评语文本 */
 const gradeText = computed(() => {
-  if (hasFailedBaoMing.value) return '保命题失守，综合成绩归零'
+  if (hasFailedBaoMing.value) return '重要题目失守，综合成绩归零'
   if (score.value === questions.value.length) return '满分！太厉害了！'
   if (score.value / questions.value.length >= 0.8) return '优秀，继续加油！'
   if (score.value / questions.value.length >= 0.6) return '不错，还有进步空间'
@@ -646,12 +644,10 @@ const submitExam = async () => {
     if (r.data?.correct) {
       cc++;
       cr.add(i);
-      logAnswer({ questionId: q.id, bank: props.examInfo.bank, type: q.type, correct: true, meta: q.meta || {}, kw: computeKeywords(q, r.data.answer) });
     } else {
       wr.add(i);
       if (q.meta?.isBaoMing === true) failedBaoMing = true;
       if (r.data) wd[i] = { answer: r.data.answer, explanation: r.data.explanation };
-      logAnswer({ questionId: q.id, bank: props.examInfo.bank, type: q.type, correct: false, meta: q.meta || {}, kw: computeKeywords(q, r.data.answer) });
     }
   }
   score.value = failedBaoMing ? 0 : cc;

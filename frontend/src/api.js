@@ -27,6 +27,15 @@ export function getBanks() {
 }
 
 /**
+ * 获取指定题库各题型题目数量（含全部/重要题目）
+ * @param {string} bankName - 题库名称
+ * @returns {Promise} axios GET 响应，data 形如 { all, baoMing, 单选题, 多选题, ... }
+ */
+export function getQuestionCounts(bankName) {
+  return axios.get('/question-counts', { params: { bankName } });
+}
+
+/**
  * 获取指定题库的题目
  * @param {string} bankName - 题库名称
  * @param {number} order - 题目序号（从0开始）

@@ -65,8 +65,8 @@ function parseQuestions(filePath) {
         试题编号: row["试题编号"] || "",
         备注: row["备注"] || "",
       };
-      // 备注中含「保命题」则标记
-      if (meta["备注"] && meta["备注"].includes("保命题")) {
+      // 备注中含「重要题目」（旧文件写「保命题」）则标记
+      if (meta["备注"] && /重要题目|保命题/.test(meta["备注"])) {
         meta.isBaoMing = true;
       }
 
@@ -180,6 +180,36 @@ function createServer(userDataPath) {
       const stmt = db.prepare("SELECT name FROM banks");
       const rows = stmt.all();
       res.json({ banks: rows.map((r) => r.name) });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── 各题型题目数量（题型筛选按钮上方的计数） ───
+  app.get("/question-counts", (req, res) => {
+    const { bankName } = req.query;
+    if (!bankName) return res.status(400).json({ error: "缺少题库名" });
+    try {
+      const bankRow = db
+        .prepare("SELECT id FROM banks WHERE name=?")
+        .get(bankName);
+      if (!bankRow) return res.status(400).json({ error: "题库不存在" });
+
+      const rows = db
+        .prepare("SELECT type, meta FROM questions WHERE bank_id = ?")
+        .all(bankRow.id);
+      const counts = { all: 0, baoMing: 0 };
+      for (const r of rows) {
+        counts.all++;
+        const type = r.type || "单选题";
+        counts[type] = (counts[type] || 0) + 1;
+        if (r.meta) {
+          try {
+            if (JSON.parse(r.meta).isBaoMing) counts.baoMing++;
+          } catch {}
+        }
+      }
+      res.json(counts);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

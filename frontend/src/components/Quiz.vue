@@ -45,7 +45,7 @@
         </div>
 
         <div v-else-if="question" class="flex-1 flex flex-col">
-            <!-- 保命题跑马灯边框 -->
+            <!-- 重要题目跑马灯边框 -->
             <div
                 class="flex-1 flex flex-col mx-4 my-4 relative"
                 :class="{ 'bao-ming-card': isBaoMing }"
@@ -58,7 +58,7 @@
                         <div class="flex items-center gap-1.5 flex-wrap">
                             <Badge variant="default">{{ question.type }}</Badge>
                             <Badge v-if="isBaoMing" variant="destructive"
-                                >保命题</Badge
+                                >重要题目</Badge
                             >
                             <Badge
                                 v-if="question.meta?.['题目分类']"
@@ -67,31 +67,41 @@
                             >
                         </div>
                         <div class="flex items-center gap-2" data-tour="modes">
-                            <!-- 题型筛选 -->
+                            <!-- 题型筛选（选中项上方显示该类题目总数，按住 Shift 全部显示） -->
                             <div class="flex items-center gap-0.5 mr-1">
                                 <button
                                     v-for="t in typeFilters"
                                     :key="t.key"
                                     @click="toggleTypeFilter(t.key)"
-                                    class="text-[10px] px-1.5 py-0.5 border transition-colors"
+                                    class="relative text-[10px] px-1.5 py-0.5 border transition-colors"
                                     :class="
                                         typeFilter.includes(t.key)
                                             ? 'border-primary/40 bg-primary/10 text-primary font-medium'
                                             : 'border-transparent text-muted-foreground hover:text-foreground'
                                     "
                                 >
+                                    <span
+                                        v-if="hasTypeCounts && showCountFor(t.key)"
+                                        class="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] leading-none tabular-nums text-muted-foreground/70"
+                                        >{{ typeCounts[t.key] ?? 0 }}</span
+                                    >
                                     {{ t.label }}
                                 </button>
                                 <button
                                     @click="toggleTypeFilter('baoMing')"
-                                    class="text-[10px] px-1.5 py-0.5 border transition-colors"
+                                    class="relative text-[10px] px-1.5 py-0.5 border transition-colors"
                                     :class="
                                         baoMingOnly
                                             ? 'border-destructive/60 bg-destructive/10 text-destructive font-medium'
                                             : 'border-transparent text-muted-foreground hover:text-destructive/70'
                                     "
                                 >
-                                    保命
+                                    <span
+                                        v-if="hasTypeCounts && showCountFor('baoMing')"
+                                        class="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] leading-none tabular-nums text-destructive/70"
+                                        >{{ typeCounts.baoMing ?? 0 }}</span
+                                    >
+                                    重要
                                 </button>
                             </div>
                             <!-- 顺序/随机 -->
@@ -179,7 +189,7 @@
                             </div>
                         </div>
 
-                        <!-- 选项：保命题时，死神以选项右边缘为轴，从选项后面旋转探出 -->
+                        <!-- 选项：重要题目时，死神以选项右边缘为轴，从选项后面旋转探出 -->
                         <div
                             v-else
                             class="bao-options-stage flex-1 min-w-0"
@@ -260,13 +270,13 @@
                                 </div>
                             </div>
 
-                            <!-- 保命题死神：左下角钉在选项右边缘，始终处于选项主体后方 -->
+                            <!-- 重要题目死神：左下角钉在选项右边缘，始终处于选项主体后方 -->
                             <img
                                 v-if="isBaoMing"
                                 :key="question.id"
-                                src="/baoming-q-96.png"
-                                alt="保命题"
-                                title="保命题"
+                                src="/zhongyao-q-96.png"
+                                alt="重要题目"
+                                title="重要题目"
                                 class="bao-badge dark:invert"
                                 :class="
                                     baoAnim === 'correct'
@@ -459,8 +469,6 @@ import {
     updateMistakeNote,
     MISTAKE_BOOK_ID,
 } from "../utils/mistakeBook";
-import { logAnswer } from "../utils/answerLog";
-import { computeKeywords } from "../utils/keywords";
 import { useAiMode } from "../composables/useAiMode";
 import { applyShuffle, toOriginalLetter, toDisplayAnswer } from "../lib/utils";
 import { judgeAnswer } from "../utils/answerJudge";
@@ -486,7 +494,7 @@ const noteSaved = ref(false);
 const aiJudging = ref(false);
 const showFinishDialog = ref(false);
 let loadRequestId = 0;
-// 保命题插图动画状态：'' | 'enter'(冒出) | 'correct'(答对消失)
+// 重要题目插图动画状态：'' | 'enter'(冒出) | 'correct'(答对消失)
 const baoAnim = ref("");
 
 // 错题库随机模式：本地打乱索引队列，避免重复出题（与后端随机队列同思路）
@@ -504,6 +512,43 @@ const typeFilters = computed(() => {
 });
 const typeFilter = ref(["all"]);
 const baoMingOnly = ref(false);
+
+// 题型计数：选中项在其按钮上方显示该类题目总数，按住 Shift 全部显示
+const typeCounts = ref({});
+const showAllCounts = ref(false);
+const hasTypeCounts = computed(() => Object.keys(typeCounts.value).length > 0);
+const showCountFor = (key) => {
+    if (showAllCounts.value) return true;
+    if (key === "baoMing") return baoMingOnly.value;
+    if (key === "all") return typeFilter.value.includes("all");
+    return (
+        !typeFilter.value.includes("all") && typeFilter.value.includes(key)
+    );
+};
+/** 拉取当前题库各题型数量（错题库按本地数据统计） */
+const refreshTypeCounts = async () => {
+    if (!currentBank.value) {
+        typeCounts.value = {};
+        return;
+    }
+    if (isMistakeBook.value) {
+        const counts = { all: 0, baoMing: 0 };
+        for (const q of getMistakeBook()) {
+            counts.all++;
+            const type = q.type || "单选题";
+            counts[type] = (counts[type] || 0) + 1;
+            if (q.meta?.isBaoMing === true) counts.baoMing++;
+        }
+        typeCounts.value = counts;
+        return;
+    }
+    try {
+        const res = await api.getQuestionCounts(currentBank.value);
+        typeCounts.value = res.data || {};
+    } catch {
+        typeCounts.value = {};
+    }
+};
 
 const hasActiveFilters = () =>
     !typeFilter.value.includes("all") || baoMingOnly.value;
@@ -645,6 +690,7 @@ const onBankChange = async (bankId) => {
     emit("bank-changed");
     resetFilters();
     resetQuestionState();
+    refreshTypeCounts();
     if (!bankId) {
         loadRequestId++;
         question.value = null;
@@ -727,7 +773,7 @@ const loadQuestion = async () => {
             question.value = res.data;
             if (shuffleMode.value) applyShuffle(question.value);
         }
-        // 保命题：每次加载题目时触发角标冒出动画
+        // 重要题目：每次加载题目时触发角标冒出动画
         baoAnim.value = isBaoMing.value ? "enter" : "";
         resetQuestionState();
     } catch (e) {
@@ -787,7 +833,7 @@ const checkLocalAnswer = (q, ua) => {
 };
 
 /**
- * 保命题答对后插图向左旋转消失；答错不做处理
+ * 重要题目答对后插图向左旋转消失；答错不做处理
  * @param {boolean} correct - 是否答对
  * @returns {void}
  */
@@ -839,17 +885,10 @@ const submitAnswer = async () => {
             questionData: lastResult.value.questionData,
         });
         applyBaoResultAnim(correct);
-        logAnswer({
-            questionId: q.questionId || q.id,
-            bank: currentBank.value,
-            type: q.type,
-            correct,
-            meta: q.meta || {},
-            kw: computeKeywords(q, answer),
-        });
         if (isMistakeBook.value && correct) {
             removeQuestionFromMistakeBook(q.questionId);
             bankSelectorRef.value?.refreshBanks();
+            refreshTypeCounts();
         }
 
         // 速刷模式：自动跳下一题
@@ -937,14 +976,6 @@ const aiJudgeQuestion = async () => {
             questionData: lastResult.value.questionData,
         });
         applyBaoResultAnim(!!correct);
-        logAnswer({
-            questionId: question.value.questionId || question.value.id,
-            bank: currentBank.value,
-            type: question.value.type,
-            correct: !!correct,
-            meta: question.value.meta || {},
-            kw: computeKeywords(question.value, stdAnswer),
-        });
     } catch (e) {
         const msg = e.response?.data?.error || "AI 判题失败，请检查 API Key";
         toast.error(msg);
@@ -989,8 +1020,25 @@ const onQuizKeydown = (e) => {
     }
 };
 
-onMounted(() => document.addEventListener("keydown", onQuizKeydown));
-onUnmounted(() => document.removeEventListener("keydown", onQuizKeydown));
+// Shift 按住 = 题型计数全显（松开恢复只显示选中项）
+const onShiftKeyDown = (e) => {
+    if (e.key === "Shift") showAllCounts.value = true;
+};
+const onShiftKeyUp = (e) => {
+    if (e.key === "Shift") showAllCounts.value = false;
+};
+
+onMounted(() => {
+    document.addEventListener("keydown", onQuizKeydown);
+    window.addEventListener("keydown", onShiftKeyDown);
+    window.addEventListener("keyup", onShiftKeyUp);
+    window.addEventListener("blur", () => (showAllCounts.value = false));
+});
+onUnmounted(() => {
+    document.removeEventListener("keydown", onQuizKeydown);
+    window.removeEventListener("keydown", onShiftKeyDown);
+    window.removeEventListener("keyup", onShiftKeyUp);
+});
 
 defineExpose({ refreshBanks: () => bankSelectorRef.value?.refreshBanks() });
 </script>
@@ -1027,7 +1075,7 @@ defineExpose({ refreshBanks: () => bankSelectorRef.value?.refreshBanks() });
     }
 }
 
-/* ===== 保命题死神：抓住选项右边缘，从选项背后旋转探出 ===== */
+/* ===== 重要题目死神：抓住选项右边缘，从选项背后旋转探出 ===== */
 
 /*
  * 舞台：选项主体和死神必须处在同一个层叠上下文里。
@@ -1040,7 +1088,7 @@ defineExpose({ refreshBanks: () => bankSelectorRef.value?.refreshBanks() });
 }
 
 /*
- * 保命题时给右侧插图留出空间。
+ * 重要题目时给右侧插图留出空间。
  * 这个值同时决定选项右边缘的位置，需和 .bao-badge 的 left 计算保持一致。
  */
 .bao-options-stage--active .bao-options-panel {
