@@ -16,12 +16,8 @@ let updateAvailable = false;
 let updateReady = false;
 let updateInstalling = false;
 let updateState = { status: 'idle' };
-let resolvedUpdateFeedUrl = '';
-let updateFeedResolvePromise = null;
 
-const DEFAULT_GITEA_RELEASE_PAGE_URL = 'http://10.13.20.11:3000/ispacewang/question/releases/tag/v2.5.7';
 const UPDATE_FEED_URL_OVERRIDE = process.env.QUESORA_UPDATE_URL || '';
-const GITEA_RELEASE_PAGE_URL = process.env.QUESORA_RELEASE_PAGE_URL || DEFAULT_GITEA_RELEASE_PAGE_URL;
 const SPLASH_MIN_DURATION = 1000;
 
 function isDevelopment() {
@@ -88,77 +84,13 @@ function normalizeFeedUrl(url) {
   return url.endsWith('/') ? url : `${url}/`;
 }
 
-function getGiteaReleaseConfig(releasePageUrl) {
-  const url = new URL(releasePageUrl);
-  const tagMarker = '/releases/tag/';
-  const tagIndex = url.pathname.indexOf(tagMarker);
-  if (tagIndex === -1) {
-    throw new Error('Gitea Release 地址格式不正确');
-  }
-
-  const repoPath = url.pathname.slice(0, tagIndex).replace(/\/+$/, '');
-  const repoParts = repoPath.split('/').filter(Boolean);
-  if (repoParts.length < 2) {
-    throw new Error('Gitea Release 地址缺少 owner/repo');
-  }
-
-  const owner = repoParts[repoParts.length - 2];
-  const repo = repoParts[repoParts.length - 1];
-  const basePath = repoParts.slice(0, -2).join('/');
-  const basePrefix = basePath ? `/${basePath}` : '';
-  const tag = decodeURIComponent(url.pathname.slice(tagIndex + tagMarker.length).split('/')[0]);
-
-  return {
-    origin: url.origin,
-    basePrefix,
-    owner,
-    repo,
-    tag,
-  };
-}
-
-function buildGiteaApiUrl(config) {
-  return `${config.origin}${config.basePrefix}/api/v1/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}/releases/latest`;
-}
-
-function buildGiteaDownloadUrl(config, tag) {
-  return normalizeFeedUrl(`${config.origin}${config.basePrefix}/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}/releases/download/${encodeURIComponent(tag)}`);
-}
-
-async function resolveUpdateFeedUrl() {
-  if (UPDATE_FEED_URL_OVERRIDE) {
-    resolvedUpdateFeedUrl = normalizeFeedUrl(UPDATE_FEED_URL_OVERRIDE);
-    autoUpdater.setFeedURL({ provider: 'generic', url: resolvedUpdateFeedUrl });
-    return resolvedUpdateFeedUrl;
-  }
-
-  if (resolvedUpdateFeedUrl) return resolvedUpdateFeedUrl;
-  if (updateFeedResolvePromise) return updateFeedResolvePromise;
-
-  updateFeedResolvePromise = (async () => {
-    const config = getGiteaReleaseConfig(GITEA_RELEASE_PAGE_URL);
-    let latestTag = config.tag;
-
-    if (typeof fetch === 'function') {
-      const response = await fetch(buildGiteaApiUrl(config), {
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        throw new Error(`Gitea 最新版本接口返回 ${response.status}`);
-      }
-      const latestRelease = await response.json();
-      latestTag = latestRelease.tag_name || latestRelease.tag || latestTag;
-    }
-
-    resolvedUpdateFeedUrl = buildGiteaDownloadUrl(config, latestTag);
-    autoUpdater.setFeedURL({ provider: 'generic', url: resolvedUpdateFeedUrl });
-    return resolvedUpdateFeedUrl;
-  })().finally(() => {
-    updateFeedResolvePromise = null;
-  });
-
-  return updateFeedResolvePromise;
+/**
+ * 配置更新源：默认用 package.json build.publish 的 GitHub Releases 配置（构建时写入 app-update.yml，
+ * electron-updater 自动读取）；仅当 QUESORA_UPDATE_URL 指定时才改用通用静态源
+ */
+function applyUpdateFeed() {
+  if (!UPDATE_FEED_URL_OVERRIDE) return;
+  autoUpdater.setFeedURL({ provider: 'generic', url: normalizeFeedUrl(UPDATE_FEED_URL_OVERRIDE) });
 }
 
 function closeBackendServer(done) {
@@ -221,7 +153,8 @@ function checkForUpdates() {
   }
 
   sendUpdateState({ status: 'checking' });
-  resolveUpdateFeedUrl().then(() => autoUpdater.checkForUpdates()).catch((error) => {
+  applyUpdateFeed();
+  autoUpdater.checkForUpdates().catch((error) => {
     sendUpdateState({ status: 'error', error: error?.message || '检查更新失败' });
   });
 }

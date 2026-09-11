@@ -16,9 +16,14 @@
     "appId": "com.ispace.quesora",
     "icon": "frontend/public/icon-512x512.png",
     "publish": {
-      "provider": "generic",
-      "url": "http://10.13.20.11:3000/ispacewang/question/releases/download/v2.6.1"
+      "provider": "github",
+      "owner": "ispacewang",
+      "repo": "quesora",
+      "releaseType": "release"
     },
+    "asarUnpack": [
+      "**/node_modules/@mote-software/**"
+    ],
     "directories": {
       "output": "release/"
     },

@@ -33,7 +33,7 @@ jobs:
         shell: bash
 
       - name: Build Windows installer
-        run: yarn build:win
+        run: yarn build:win --publish always
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
