@@ -75,10 +75,10 @@
             @drop.prevent="onMaterialDrop"
           >
             <Paperclip class="size-3.5 flex-shrink-0" />
-            <span v-if="materialParsing" class="flex items-center gap-1"><Loader class="size-3 animate-spin" /> 正在解析附件…</span>
-            <span v-else-if="material" class="truncate">{{ material.name }}（{{ material.chars }} 字{{ material.truncated ? '，超出部分已截断' : '' }}）</span>
-            <span v-else class="truncate">支持 Word/Excel/PDF/txt/md/csv，AI 将依据附件内容出题</span>
-            <span v-if="material && !materialParsing" class="ml-auto flex-shrink-0 hover:text-destructive" @click.stop="material = null">×</span>
+            <span v-if="materialParsing" class="flex items-center gap-1 flex-shrink-0"><Loader class="size-3 animate-spin" /> 正在解析附件…</span>
+            <span v-else-if="material" class="flex-1 min-w-0 truncate" :title="material.name">{{ material.name }}（{{ material.chars }} 字{{ material.truncated ? '，超出部分已截断' : '' }}）</span>
+            <span v-else class="flex-1 min-w-0 truncate">支持 Word/Excel/PDF/txt/md/csv，AI 将依据附件内容出题</span>
+            <span v-if="material && !materialParsing" class="flex-shrink-0 hover:text-destructive" @click.stop="material = null">×</span>
           </div>
           <input ref="materialInput" type="file" accept=".docx,.xlsx,.pdf,.txt,.md,.csv" class="hidden" @change="onMaterialChange" />
         </div>
