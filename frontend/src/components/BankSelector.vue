@@ -57,12 +57,30 @@
     <Dialog :open="genDialogOpen" @update:open="genDialogOpen = $event" class="sm:max-w-[460px]">
       <DialogHeader>
         <DialogTitle>AI 生成题库</DialogTitle>
-        <DialogDescription>输入主题，AI 将自动生成题目并写入题库</DialogDescription>
+        <DialogDescription>输入主题，或上传附件让 AI 依据资料出题；生成结果写入新题库</DialogDescription>
       </DialogHeader>
       <div class="space-y-4 p-1">
         <div class="space-y-1.5">
           <label class="text-xs font-medium">主题</label>
           <input v-model="genTopic" placeholder="如：铁路信号安全、高压电气…" class="w-full px-3 py-2 text-sm bg-background border border-border outline-none focus:border-primary transition-colors" />
+        </div>
+        <!-- 附件：AI 依据附件内容出题 -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-medium">附件（可选）</label>
+          <div
+            class="flex items-center gap-2 px-3 py-2 border border-dashed text-xs transition-colors cursor-pointer"
+            :class="materialParsing ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:border-primary/50'"
+            @click="materialInput?.click()"
+            @dragover.prevent
+            @drop.prevent="onMaterialDrop"
+          >
+            <Paperclip class="size-3.5 flex-shrink-0" />
+            <span v-if="materialParsing" class="flex items-center gap-1"><Loader class="size-3 animate-spin" /> 正在解析附件…</span>
+            <span v-else-if="material" class="truncate">{{ material.name }}（{{ material.chars }} 字{{ material.truncated ? '，超出部分已截断' : '' }}）</span>
+            <span v-else class="truncate">支持 Word/Excel/PDF/txt/md/csv，AI 将依据附件内容出题</span>
+            <span v-if="material && !materialParsing" class="ml-auto flex-shrink-0 hover:text-destructive" @click.stop="material = null">×</span>
+          </div>
+          <input ref="materialInput" type="file" accept=".docx,.xlsx,.pdf,.txt,.md,.csv" class="hidden" @change="onMaterialChange" />
         </div>
         <div class="flex gap-3">
           <div class="flex-1 space-y-1.5">
@@ -111,7 +129,7 @@
       </div>
       <DialogFooter>
         <Button variant="outline" @click="genDialogOpen = false" :disabled="genStatus?.running">取消</Button>
-        <button v-if="!genStatus?.done" @click="startGenerate" :disabled="genStatus?.running || !genTopic.trim()"
+        <button v-if="!genStatus?.done" @click="startGenerate" :disabled="genStatus?.running || (!genTopic.trim() && !material)"
           class="liquid-btn inline-flex items-center px-4 py-1.5 text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <span class="liquid-btn-inner px-3">
@@ -158,7 +176,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Upload, Pencil, BookOpen, Sparkles, CircleCheck, CircleX, Loader } from 'lucide-vue-next'
+import { Upload, Pencil, BookOpen, Sparkles, CircleCheck, CircleX, Loader, Paperclip } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import axios from 'axios'
 import Dialog from './ui/Dialog.vue'
@@ -190,12 +208,48 @@ const genBankName = ref('')
 const genStatus = ref(null)
 const genModel = ref(selectedModel.value || 'deepseek-v4-pro')
 const genModels = computed(() => availableModels.value.length ? availableModels.value : [{ id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }, { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }])
+const materialInput = ref(null)
+const material = ref(null)
+const materialParsing = ref(false)
+let genPollTimer = null
+
+/**
+ * 上传附件并解析成 Markdown（后端调用 markitdown）
+ * @param {File} file - Word/Excel/PDF/txt/md/csv 附件
+ * @returns {Promise<void>}
+ */
+async function uploadMaterial(file) {
+  materialParsing.value = true
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await axios.post('http://localhost:13002/api/ai/material', form)
+    material.value = res.data
+    toast.success(`附件已解析：${res.data.chars} 字`)
+  } catch (e) {
+    material.value = null
+    toast.error(e.response?.data?.error || '附件解析失败')
+  } finally {
+    materialParsing.value = false
+  }
+}
+
+const onMaterialChange = (e) => {
+  const file = e.target?.files?.[0]
+  if (file) uploadMaterial(file)
+  e.target.value = ''
+}
+const onMaterialDrop = (e) => {
+  const file = e.dataTransfer?.files?.[0]
+  if (file) uploadMaterial(file)
+}
+
 /**
  * 发起 AI 题库生成请求，成功后开始轮询进度
  * @returns {Promise<void>}
  */
 async function startGenerate() {
-  if (!genTopic.value.trim()) return
+  if (!genTopic.value.trim() && !material.value) return
   genStatus.value = { running: true, progress: 0, total: genTotal.value }
   try {
     const res = await axios.post('http://localhost:13002/api/ai/generate', {
@@ -203,6 +257,7 @@ async function startGenerate() {
       total: genTotal.value,
       bankName: genBankName.value || undefined,
       model: genModel.value,
+      materialId: material.value?.id,
     })
     if (res.data.ok) {
       pollGenStatus()
@@ -237,6 +292,7 @@ function finishGenerate() {
   genTopic.value = ''
   genBankName.value = ''
   genStatus.value = null
+  material.value = null
   if (genPollTimer) clearTimeout(genPollTimer)
   fetchAll().then(() => {
     if (name) {

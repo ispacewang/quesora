@@ -74,9 +74,9 @@
   optionalDependencies:
     global-agent "^3.0.0"
 
-"@electron/node-gyp@git+https://github.com/electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2":
+"@electron/node-gyp@https://github.com/electron/node-gyp#06b29aafb7708acef8b3669835c8a7857ebc92d2":
   version "10.2.0-electron.1"
-  resolved "git+https://github.com/electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2"
+  resolved "https://github.com/electron/node-gyp#06b29aafb7708acef8b3669835c8a7857ebc92d2"
   dependencies:
     env-paths "^2.2.0"
     exponential-backoff "^3.1.1"
@@ -346,6 +346,36 @@
     fs-extra "^9.0.0"
     lodash "^4.17.15"
     tmp-promise "^3.0.2"
+
+"@mote-software/markitdown-binary-darwin-arm64@1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmmirror.com/@mote-software/markitdown-binary-darwin-arm64/-/markitdown-binary-darwin-arm64-1.2.0.tgz#dc18480997effbeb5ab7ea9e5f9cb398137a5b89"
+  integrity sha512-W4WNRvZ/baYJX40qv/1ySwEKDCmWdASFrFT1GALTef4qhVC4TygtlzuMgd4LyUZfxuVCfYYCz+1cIygfe45dGw==
+
+"@mote-software/markitdown-binary-darwin-x64@1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmmirror.com/@mote-software/markitdown-binary-darwin-x64/-/markitdown-binary-darwin-x64-1.2.0.tgz#1788a9f5ee2e7347feea0e6e438bebce3bec9b4d"
+  integrity sha512-VkGZ0vEe2OP0wWjZKvhBGP88evUiFCNQEtZ0Ut0AChHv867XDkL8vc865V3jicWATjqu2MseRD6RCJBMsvwz6A==
+
+"@mote-software/markitdown-binary-linux-x64@1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmmirror.com/@mote-software/markitdown-binary-linux-x64/-/markitdown-binary-linux-x64-1.2.0.tgz#ae25f3d12ae0c7c693ffa0d24bba9f6f9d97e35c"
+  integrity sha512-Rv715jkYw8MVfflhEQZju/2+1UCIhUmj9V1OmO+SMAP7m1K2Z9zAqHGrDrG+JRQntSWNQzM+iAXRdq0XWIxsqQ==
+
+"@mote-software/markitdown-binary-win32-x64@1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmmirror.com/@mote-software/markitdown-binary-win32-x64/-/markitdown-binary-win32-x64-1.2.0.tgz#c87d366e6d6f1d1f13d570f8a70003ded1c5aebd"
+  integrity sha512-tG/cka3JHbgPTOKTjO6QxAVkh/iXvE2WLScW3/Xv8TfhHWlAu9RrTZrwvHyRc2DtRgZI3P1G4fgvSEnjdQHZ3Q==
+
+"@mote-software/markitdown@^1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmmirror.com/@mote-software/markitdown/-/markitdown-1.2.0.tgz#c2121f1abcd5915f77dfd3a97eb60b1707b7da2a"
+  integrity sha512-oj8uiFISsL1daUoSX0P4YyAoQwLxBQaRX/D90W+WdoDen+pHNvR2vZOCmObKl7AAOthidjLbtE6/GmvBPsVIsg==
+  optionalDependencies:
+    "@mote-software/markitdown-binary-darwin-arm64" "1.2.0"
+    "@mote-software/markitdown-binary-darwin-x64" "1.2.0"
+    "@mote-software/markitdown-binary-linux-x64" "1.2.0"
+    "@mote-software/markitdown-binary-win32-x64" "1.2.0"
 
 "@npmcli/fs@^2.1.0":
   version "2.1.2"
