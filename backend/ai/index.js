@@ -1,7 +1,10 @@
-/** @file index.js — AI 路由，API Key + 模型配置、题库生成、AI 判题、模型列表 */
+/** @file index.js — AI 路由，API Key + 模型配置、题库生成（可带附件）、AI 判题、模型列表 */
+const multer = require('multer');
+const os = require('os');
 const { generateQuestions } = require('./generator');
 const { judgeQuestion } = require('./judge');
 const { fetchModels, chat } = require('./deepseek');
+const { convertToMarkdown, MAX_CHARS } = require('./material');
 const db = require('../db');
 const fs = require('fs');
 const path = require('path');
@@ -23,8 +26,11 @@ function saveConfig(config) {
 
 function createAiRoutes() {
   const router = require('express').Router();
+  const upload = multer({ dest: os.tmpdir() });
   let genStatus = null;
   let cachedConfig = loadConfig();
+  // 附件解析结果（内存缓存，最多保留 5 份，供 /generate 按 id 取用）
+  const materials = new Map();
 
   // ─── POST /config：保存 API Key + 模型 ───
   router.post('/config', (req, res) => {
@@ -72,12 +78,43 @@ function createAiRoutes() {
     }
   });
 
+  // ─── POST /material：附件转 Markdown（txt/md/csv/pdf/docx/xlsx），供出题引用 ───
+  router.post('/material', upload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: '没有收到附件' });
+
+    // multer 按 latin1 保存原始文件名，中文需转回 utf8
+    const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    try {
+      const { text, truncated } = convertToMarkdown(req.file.path, originalName);
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      materials.set(id, { text, name: originalName });
+      while (materials.size > 5) materials.delete(materials.keys().next().value);
+
+      res.json({
+        ok: true,
+        id,
+        name: originalName,
+        chars: text.length,
+        truncated,
+        maxChars: MAX_CHARS,
+        preview: text.replace(/\s+/g, ' ').slice(0, 120),
+      });
+    } catch (err) {
+      if (err.clientError) return res.status(400).json({ error: err.message });
+      res.status(500).json({ error: `附件解析失败：${String(err.message).slice(0, 200)}` });
+    }
+  });
+
   // ─── POST /generate ───
   router.post('/generate', async (req, res) => {
     const apiKey = cachedConfig.apiKey;
     if (!apiKey) return res.status(400).json({ error: '请先配置 API Key' });
 
-    const { topic = '通用知识', total = 500, bankName, model } = req.body;
+    const { total = 500, bankName, model, materialId } = req.body;
+    const material = materialId ? materials.get(materialId) : null;
+    if (materialId && !material) return res.status(400).json({ error: '附件已失效，请重新上传' });
+
+    const topic = (req.body.topic || '').trim() || (material ? material.name : '通用知识');
     const name = bankName || `AI题库_${topic}_${Date.now().toString(36)}`;
 
     const existing = db.prepare('SELECT id FROM banks WHERE name = ?').get(name);
@@ -92,7 +129,7 @@ function createAiRoutes() {
       genStatus.progress = info.questions;
       genStatus.batch = info.batch;
       genStatus.totalBatches = info.totalBatches;
-    }, useModel).then(async (questions) => {
+    }, useModel, material ? material.text : '').then(async (questions) => {
       if (questions.length === 0) {
         genStatus = { running: false, error: '未能生成题目，请检查 API Key 或网络' };
         return;

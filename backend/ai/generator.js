@@ -2,6 +2,8 @@
 const { chat } = require('./deepseek');
 
 const TYPE_LIST = ['单选题', '多选题', '判断题', '简答题', '填空题'];
+/** 每批送给模型的参考资料字符上限（约 4000 字，避免单次 prompt 过大） */
+const MATERIAL_CHUNK_CHARS = 4000;
 
 /**
  * 生成一批题目（分批调用 API，每批 10 题）
@@ -9,12 +11,15 @@ const TYPE_LIST = ['单选题', '多选题', '判断题', '简答题', '填空�
  * @param {string} topic — 主题/领域
  * @param {number} total — 总题数（默认 500）
  * @param {function} onProgress — 进度回调 ({batch, totalBatches, questions})
+ * @param {string} model — 模型 id
+ * @param {string} material — 参考资料（Markdown 文本，可为空）
  * @returns {Promise<Array>} 题目数组
  */
-async function generateQuestions(apiKey, topic = '通用知识', total = 500, onProgress, model = 'deepseek-v4-pro') {
+async function generateQuestions(apiKey, topic = '通用知识', total = 500, onProgress, model = 'deepseek-v4-pro', material = '') {
   const BATCH_SIZE = 10;
   const totalBatches = Math.ceil(total / BATCH_SIZE);
   const allQuestions = [];
+  const chunks = material ? splitMaterial(material) : [];
 
   for (let batch = 0; batch < totalBatches; batch++) {
     const remaining = total - allQuestions.length;
@@ -26,7 +31,11 @@ async function generateQuestions(apiKey, topic = '通用知识', total = 500, on
       types.push(TYPE_LIST[i % 5]);
     }
 
-    const prompt = buildGeneratePrompt(topic, batchSize, types, allQuestions.length + 1);
+    // 参考资料按批轮流使用，保证整套题覆盖整份资料
+    const chunk = chunks.length
+      ? { text: chunks[batch % chunks.length], index: (batch % chunks.length) + 1, total: chunks.length }
+      : null;
+    const prompt = buildGeneratePrompt(topic, batchSize, types, allQuestions.length + 1, chunk);
 
     try {
       const response = await chat(apiKey, [
@@ -53,16 +62,47 @@ async function generateQuestions(apiKey, topic = '通用知识', total = 500, on
 }
 
 /**
+ * 把参考资料切成不超过 chunkChars 的段落块（优先按空行断段，超长段落硬切）
+ * @param {string} text — Markdown 资料全文
+ * @param {number} [chunkChars] — 每块字符上限
+ * @returns {string[]} 资料块数组
+ */
+function splitMaterial(text, chunkChars = MATERIAL_CHUNK_CHARS) {
+  const chunks = [];
+  let buf = '';
+  const flush = () => {
+    if (buf) chunks.push(buf);
+    buf = '';
+  };
+  for (const para of text.split(/\n{2,}/)) {
+    const pieces = para.length > chunkChars
+      ? para.match(new RegExp(`[\\s\\S]{1,${chunkChars}}`, 'g'))
+      : [para];
+    for (const piece of pieces || []) {
+      if (buf && buf.length + piece.length + 2 > chunkChars) flush();
+      buf = buf ? `${buf}\n\n${piece}` : piece;
+    }
+  }
+  flush();
+  return chunks;
+}
+
+/**
  * 构造 AI 题库生成的 prompt
  * @param {string} topic — 主题/领域
  * @param {number} count — 本次生成数量
  * @param {string[]} types — 题型数组
  * @param {number} startIndex — 起始编号
+ * @param {{text: string, index: number, total: number}|null} chunk — 本次引用的参考资料块
  * @returns {string} 完整的 prompt 文本
  */
-function buildGeneratePrompt(topic, count, types, startIndex) {
-  return `生成 ${count} 道关于"${topic}"的考试题目。题目编号从 ${startIndex} 开始，类型依次为: ${types.join(', ')}。
+function buildGeneratePrompt(topic, count, types, startIndex, chunk = null) {
+  const materialPart = chunk
+    ? `\n【参考资料】以下是参考资料的第 ${chunk.index}/${chunk.total} 段，题目必须围绕这段资料出：\n<资料>\n${chunk.text}\n</资料>\n\n出题要求：题干与答案以资料内容为准，不要编造资料中没有的知识点；同一段资料被多批题目复用时，请换角度出题，避免与前面批次的题目重复。\n`
+    : '';
 
+  return `生成 ${count} 道关于"${topic}"的考试题目。题目编号从 ${startIndex} 开始，类型依次为: ${types.join(', ')}。
+${materialPart}
 每道题包含字段：question(题干), type, options(选项数组), answer(答案), explanation(解析)。
 
 题型格式：
