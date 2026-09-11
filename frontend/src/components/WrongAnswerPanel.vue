@@ -30,21 +30,26 @@
         <div v-if="item.questionData.options?.length" class="flex flex-col gap-0.5 mb-2">
           <div v-for="(opt, j) in item.questionData.options" :key="j"
             class="text-[11px] px-1 py-0.5 flex gap-0.5"
-            :class="item.questionData.correctAnswer?.includes(String.fromCharCode(65 + j)) ? 'text-success font-medium' : 'text-muted-foreground'"
+            :class="item.questionData.correctAnswer?.includes(toOriginalLetter(item.questionData, j)) ? 'text-success font-medium' : 'text-muted-foreground'"
           >
             <span class="font-semibold flex-shrink-0">{{ String.fromCharCode(65 + j) }}.</span>
             <KatexRender :text="stripOpt(opt)" />
           </div>
         </div>
         <div class="flex gap-3 text-xs">
-          <span class="text-destructive">你的 {{ fmtAns(item.questionData.userAnswer) }}</span>
-          <span class="text-success font-medium">正确 {{ fmtAns(item.questionData.correctAnswer) }}</span>
+          <span class="text-destructive">你的 {{ toDisplayAnswer(item.questionData, item.questionData.userAnswer) }}</span>
+          <span class="text-success font-medium">正确 {{ toDisplayAnswer(item.questionData, item.questionData.correctAnswer) }}</span>
+        </div>
+        <div v-if="item.questionData.note" class="mt-2 p-2 border border-border/50 bg-background text-[11px] leading-relaxed">
+          <span class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-0.5">我的备注</span>
+          {{ item.questionData.note }}
         </div>
       </div>
     </div>
 
-    <div class="relative pt-2.5 border-t border-border/50 flex-shrink-0">
-      <Button variant="outline" size="sm" class="w-full text-xs" @click="showExportMenu = !showExportMenu">导出错题 ▾</Button>
+    <div class="relative pt-2.5 border-t border-border/50 flex-shrink-0 space-y-2">
+      <Button variant="default" size="sm" class="w-full text-xs rounded-none" :disabled="saved" @click="handleSaveBook">{{ saved ? '已保存到我的' : '保存到我的' }}</Button>
+      <Button variant="outline" size="sm" class="w-full text-xs rounded-none" @click="showExportMenu = !showExportMenu">导出错题 ▾</Button>
       <div v-if="showExportMenu" class="absolute bottom-full left-0 right-0 bg-background border border-border shadow-lg mb-1">
         <button class="block w-full px-3.5 py-2 text-xs text-left hover:bg-muted transition-colors border-b border-border last:border-b-0" @click="handleExport('md')">Markdown</button>
         <button class="block w-full px-3.5 py-2 text-xs text-left hover:bg-muted transition-colors" @click="handleExport('txt')">纯文本</button>
@@ -55,16 +60,22 @@
 
 <script setup>
 /** @file WrongAnswerPanel.vue — 错题本面板，错题列表+导出Markdown/纯文本 */
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { saveAs } from 'file-saver'
 import Button from './ui/Button.vue'
 import KatexRender from './KatexRender.vue'
 import DiagramBoard from './DiagramBoard.vue'
+import { toOriginalLetter, toDisplayAnswer } from '../lib/utils'
+import { useSavedMistakeBooks } from '../composables/useSavedMistakeBooks'
 
 const props = defineProps({ wrongAnswers: { type: Array, required: true, default: () => [] } })
 defineEmits(['clear'])
 const showExportMenu = ref(false)
-const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．]\s*)+/, '')
+const saved = ref(false)
+const { saveMistakeBookSnapshot } = useSavedMistakeBooks()
+watch(() => props.wrongAnswers.length, () => { saved.value = false })
+const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．（）—–\-]\s*)+/, '')
 
 /**
  * 格式化答案显示：数组用逗号拼接，非数组直接返回
@@ -82,23 +93,33 @@ const genContent = (md) => {
   let c = md ? '# 错题本\n\n' : '--- 错题本 ---\n\n'
   props.wrongAnswers.forEach((item, i) => {
     const q = item.questionData
-    const ua = fmtAns(q.userAnswer), ca = fmtAns(q.correctAnswer)
+    const ua = toDisplayAnswer(q, q.userAnswer), ca = toDisplayAnswer(q, q.correctAnswer)
     if (md) {
       c += `## ${i + 1}. ${q.question}\n\n`
-      q.options?.forEach((o, j) => { c += `- ${String.fromCharCode(65 + j)}. ${o}\n` })
+      q.options?.forEach((o, j) => { c += `- ${String.fromCharCode(65 + j)}. ${stripOpt(o)}\n` })
       c += '\n'
       c += `**你的答案：** \`${ua}\`\n**正确答案：** \`${ca}\`\n\n`
       if (q.explanation) c += `> **解析**\n> ${q.explanation}\n\n`
+      if (q.note) c += `> **我的备注**\n> ${q.note}\n\n`
       c += '---\n\n'
     } else {
       c += `${i + 1}. ${q.question}\n`
-      q.options?.forEach((o, j) => { c += `   ${String.fromCharCode(65 + j)}. ${o}\n` })
+      q.options?.forEach((o, j) => { c += `   ${String.fromCharCode(65 + j)}. ${stripOpt(o)}\n` })
       c += `\n你的答案：${ua}\n正确答案：${ca}\n`
       if (q.explanation) c += `【解析】${q.explanation}\n`
+      if (q.note) c += `【我的备注】${q.note}\n`
       c += `\n${'='.repeat(32)}\n\n`
     }
   })
   return c
+}
+
+
+const handleSaveBook = () => {
+  if (!props.wrongAnswers.length) return
+  const record = saveMistakeBookSnapshot({ questions: props.wrongAnswers })
+  saved.value = true
+  toast.success(`已保存 ${record.count} 题到「我的」`)
 }
 
 /**

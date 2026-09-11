@@ -18,17 +18,79 @@
 
       <!-- 列表 -->
       <div class="flex-1 overflow-y-auto">
-        <div v-if="!sorted.length" class="flex flex-col items-center justify-center h-full gap-5 px-8 py-12">
+        <div v-if="!sorted.length && !savedMistakeBooks.length" class="flex flex-col items-center justify-center h-full gap-5 px-8 py-12">
           <div class="w-20 h-20 flex items-center justify-center border border-dashed border-border rounded-full">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" class="text-muted-foreground/40"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           </div>
           <div class="text-center space-y-2">
-            <p class="text-sm font-medium text-muted-foreground">暂无考试记录</p>
-            <p class="text-xs text-muted-foreground/50 max-w-[240px] leading-relaxed">参加考试后点击「保存成绩」，即可在此查看历史记录与错题回顾</p>
+            <p class="text-sm font-medium text-muted-foreground">暂无保存记录</p>
+            <p class="text-xs text-muted-foreground/50 max-w-[240px] leading-relaxed">考试成绩或错题本点击保存后，会在这里展开查看</p>
           </div>
         </div>
 
-        <div v-else class="p-4 space-y-2.5">
+        <div v-else class="p-4 space-y-3">
+          <div v-if="savedMistakeBooks.length" class="space-y-2.5">
+            <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">保存的错题本</p>
+            <div
+              v-for="b in savedMistakeBooks"
+              :key="b.id"
+              class="group border border-border/60 hover:border-primary/30 transition-colors cursor-pointer"
+              :class="{ 'border-primary/30 bg-primary/[0.02]': viewingMistakeBook?.id === b.id }"
+            >
+              <div class="flex items-center gap-3.5 p-4" @click="toggleMistakeBook(b)">
+                <div class="w-12 h-12 border border-destructive/25 bg-destructive/[0.04] text-destructive flex flex-col items-center justify-center flex-shrink-0">
+                  <span class="text-sm font-bold tabular-nums leading-none">{{ b.count }}</span>
+                  <span class="text-[9px] mt-0.5">错题</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium truncate">{{ b.title }}</p>
+                  <p class="text-[10px] text-muted-foreground mt-0.5">{{ b.date }} · {{ b.count }} 题</p>
+                </div>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  class="flex-shrink-0 text-muted-foreground transition-transform duration-200"
+                  :class="{ 'rotate-90': viewingMistakeBook?.id === b.id }"
+                ><path d="m9 18 6-6-6-6"/></svg>
+                <button
+                  @click.stop="removeSavedBook(b.id)"
+                  class="flex-shrink-0 w-5 h-5 flex items-center justify-center text-muted-foreground/40 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                  title="删除"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <Transition name="expand">
+                <div v-if="viewingMistakeBook?.id === b.id" class="px-4 pb-4 border-t border-border/30 space-y-2.5">
+                  <div
+                    v-for="(q, qi) in b.questions"
+                    :key="q.questionId || qi"
+                    class="text-xs p-3 border border-border/40 space-y-2"
+                  >
+                    <div class="flex items-center gap-1.5">
+                      <Badge variant="outline" class="text-[9px]! px-1! py-0!">{{ q.type }}</Badge>
+                      <span class="text-[10px] text-muted-foreground">第 {{ qi + 1 }} 题</span>
+                    </div>
+                    <KatexRender class="leading-relaxed" :text="q.question" />
+                    <div class="flex gap-4 pt-1.5 border-t border-border/20">
+                      <span class="text-destructive"><X class="size-3 inline-block -mt-0.5" /> {{ fmtQuestionAns(q.userAnswer) }}</span>
+                      <span class="text-success"><Check class="size-3 inline-block -mt-0.5" /> {{ fmtQuestionAns(q.correctAnswer) || '?' }}</span>
+                    </div>
+                    <KatexRender v-if="q.explanation" class="text-[10px] text-muted-foreground pt-1.5 border-t border-border/20 leading-relaxed" :text="q.explanation" />
+                    <div v-if="q.note" class="text-[10px] leading-relaxed p-2 border border-border/40 bg-background">
+                      <span class="font-semibold text-muted-foreground block mb-0.5">我的备注</span>
+                      {{ q.note }}
+                    </div>
+                  </div>
+                  <button
+                    @click.stop="removeSavedBook(b.id)"
+                    class="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+                  >删除此错题本</button>
+                </div>
+              </Transition>
+            </div>
+          </div>
+
+          <div v-if="sorted.length" class="space-y-2.5">
+            <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">考试记录</p>
           <div
             v-for="r in sorted"
             :key="r.id"
@@ -108,6 +170,7 @@
               </div>
             </Transition>
           </div>
+          </div>
         </div>
       </div>
     </div>
@@ -120,13 +183,16 @@ import { ref } from 'vue'
 import Badge from './ui/Badge.vue'
 import KatexRender from './KatexRender.vue'
 import { useExamHistory } from '../composables/useExamHistory'
+import { useSavedMistakeBooks } from '../composables/useSavedMistakeBooks'
 import { X, Check, Trophy } from 'lucide-vue-next'
 
 defineProps({ open: Boolean })
 defineEmits(['close'])
 
 const { sorted, removeExam } = useExamHistory()
+const { sorted: savedMistakeBooks, removeMistakeBook } = useSavedMistakeBooks()
 const viewingExam = ref(null)
+const viewingMistakeBook = ref(null)
 
 /**
  * 切换考试记录的展开/折叠状态
@@ -134,6 +200,12 @@ const viewingExam = ref(null)
  */
 function toggleView(record) {
   viewingExam.value = viewingExam.value?.id === record.id ? null : record
+  viewingMistakeBook.value = null
+}
+
+function toggleMistakeBook(record) {
+  viewingMistakeBook.value = viewingMistakeBook.value?.id === record.id ? null : record
+  viewingExam.value = null
 }
 
 /**
@@ -177,6 +249,15 @@ function fmtUserAns(record, wi) {
 function removeRecord(id) {
   removeExam(id)
   if (viewingExam.value?.id === id) viewingExam.value = null
+}
+
+function removeSavedBook(id) {
+  removeMistakeBook(id)
+  if (viewingMistakeBook.value?.id === id) viewingMistakeBook.value = null
+}
+
+function fmtQuestionAns(a) {
+  return Array.isArray(a) ? a.join(', ') : (a || '')
 }
 </script>
 

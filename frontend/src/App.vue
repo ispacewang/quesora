@@ -24,10 +24,15 @@ import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import ExamHistoryPanel from './components/ExamHistoryPanel.vue'
 import { useAiMode } from './composables/useAiMode'
 import { useExamHistory } from './composables/useExamHistory'
+import { useSavedMistakeBooks } from './composables/useSavedMistakeBooks'
 
 const quizRef = ref(null)
 const quizStats = ref({ correct: 0, incorrect: 0, byType: {} })
 const wrongAnswers = ref([])
+
+const UPDATE_NOTICE_VERSION = '2026-07-21-shuffle-keyboard'
+const UPDATE_NOTICE_KEY = 'quesora-update-notice-version'
+const showUpdateNotice = ref(false)
 
 useTheme()
 
@@ -93,6 +98,8 @@ const showExamDialog = ref(false)
 const downloadingPaper = ref(false)
 const showHistoryPanel = ref(false)
 const { sorted: examRecords } = useExamHistory()
+const { sorted: savedMistakeBooks } = useSavedMistakeBooks()
+const myRecordCount = computed(() => examRecords.value.length + savedMistakeBooks.value.length)
 const examForm = ref({ bank: '', duration: 60 })
 const examTypeCounts = ref({ '单选题': 40, '多选题': 30, '判断题': 30, '简答题': 10, '填空题': 10 })
 const availableBanks = ref([])
@@ -154,7 +161,27 @@ const startExam = () => {
   })
 }
 
+
+const closeUpdateNotice = () => {
+  showUpdateNotice.value = false
+  try { localStorage.setItem(UPDATE_NOTICE_KEY, UPDATE_NOTICE_VERSION) } catch { }
+}
+
+const onUpdateNoticeOpen = (open) => {
+  if (open) showUpdateNotice.value = true
+  else closeUpdateNotice()
+}
+
+const checkUpdateNotice = () => {
+  try {
+    showUpdateNotice.value = localStorage.getItem(UPDATE_NOTICE_KEY) !== UPDATE_NOTICE_VERSION
+  } catch {
+    showUpdateNotice.value = true
+  }
+}
+
 onMounted(() => {
+  checkUpdateNotice()
   console.log('[App] onMounted: 开始, isAiMode=', isAiMode.value)
   aiModeModule.checkConfig().then(() => {
     console.log('[App] checkConfig完成: isAiMode=', isAiMode.value, 'apiConfigured=', apiConfigured.value)
@@ -284,10 +311,32 @@ watch(hasStats, (v) => { if (v) leftOpen.value = true })
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           <span class="text-[11px]">我的</span>
-          <span v-if="examRecords.length" class="text-[9px] font-bold text-primary-foreground bg-primary min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">{{ examRecords.length }}</span>
+          <span v-if="myRecordCount" class="text-[9px] font-bold text-primary-foreground bg-primary min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">{{ myRecordCount }}</span>
         </Button>
       </div>
     </div>
+
+
+    <!-- 首次进入更新公告 -->
+    <Dialog :open="showUpdateNotice" @update:open="onUpdateNoticeOpen" class="sm:max-w-[460px] rounded-none">
+      <DialogHeader>
+        <DialogTitle>更新公告 v2.6</DialogTitle>
+        <DialogDescription>刷题、考试体验升级。</DialogDescription>
+      </DialogHeader>
+      <div class="space-y-3 text-sm leading-relaxed">
+        <div class="p-3 border border-border/60 bg-muted/30">
+          <p class="font-medium mb-1">🎲 选项随机打乱</p>
+          <p class="text-xs text-muted-foreground">刷题和考试模式下，选择题选项自动打乱顺序（判断/简答/填空除外），判题自动映射保证正确。</p>
+        </div>
+        <div class="p-3 border border-border/60 bg-muted/30">
+          <p class="font-medium mb-1">⌨️ 速刷快捷键</p>
+          <p class="text-xs text-muted-foreground">速刷模式下，按 <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">A</kbd> <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">B</kbd> <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">C</kbd> <kbd class="px-1 py-0.5 bg-border/30 text-[11px]">D</kbd> 选选项，<kbd class="px-1 py-0.5 bg-border/30 text-[11px]">空格</kbd> 提交，流畅刷题。</p>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button class="rounded-none" @click="closeUpdateNotice">知道了</Button>
+      </DialogFooter>
+    </Dialog>
 
     <!-- 考试弹窗 -->
     <Dialog :open="showExamDialog" @update:open="showExamDialog = $event" class="sm:max-w-[440px]">
@@ -351,8 +400,11 @@ watch(hasStats, (v) => { if (v) leftOpen.value = true })
     <!-- 刷题模式 -->
     <div v-else class="flex-1 flex min-h-0 relative">
       <Transition name="panel-slide">
-        <div v-if="leftOpen" class="w-[260px] border-r border-border/50 overflow-y-auto flex-shrink-0 bg-background" data-tour="stats">
-          <StatsPanel :stats="quizStats" />
+        <div v-if="leftOpen" class="w-[260px] border-r border-border/50 flex flex-col flex-shrink-0 bg-background" data-tour="stats">
+          <div class="py-2.5 text-center text-xs font-medium text-muted-foreground border-b border-border/50 flex-shrink-0">统计</div>
+          <div class="flex-1 overflow-y-auto min-h-0">
+            <StatsPanel :stats="quizStats" />
+          </div>
         </div>
       </Transition>
 

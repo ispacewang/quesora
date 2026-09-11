@@ -67,7 +67,7 @@
                 {{ questions[qi].type }}
               </div>
               <div
-                class="flex items-center justify-center w-[28px] h-[28px] text-[11px] font-medium cursor-pointer border rounded transition-all duration-150"
+                class="relative flex items-center justify-center w-[28px] h-[28px] text-[11px] font-medium cursor-pointer border rounded transition-all duration-150"
                 :class="{
                   'bg-primary text-primary-foreground border-primary font-bold':
                     qi === currentIdx,
@@ -80,6 +80,13 @@
                 @click="goTo(qi)"
               >
                 {{ qi + 1 }}
+                <img
+                  v-if="questions[qi].meta?.isBaoMing === true"
+                  src="/zhongyao-shield-32.png"
+                  alt="重要题目"
+                  title="重要题目"
+                  class="absolute -top-1 -right-1 w-3.5 h-3.5 dark:invert"
+                />
               </div>
             </template>
           </div>
@@ -96,6 +103,7 @@
                 >第 {{ currentIdx + 1 }} 题</span
               >
               <Badge variant="default">{{ questions[currentIdx].type }}</Badge>
+              <Badge v-if="questions[currentIdx].meta?.isBaoMing === true" variant="destructive">重要题目</Badge>
               <Badge v-if="questions[currentIdx].meta?.['题目分类']" variant="success">{{
                 questions[currentIdx].meta["题目分类"]
               }}</Badge>
@@ -145,7 +153,7 @@
               class="flex items-start gap-2.5 px-3.5 py-2.5 border border-border rounded-md cursor-pointer transition-colors duration-200 hover:border-primary hover:bg-primary/5 hover:translate-x-0.5"
               :class="{
                 'border-primary bg-primary/5': answers[currentIdx]?.includes(
-                  String.fromCharCode(65 + i)
+                  toOriginalLetter(questions[currentIdx], i)
                 ),
               }"
               @click="toggleMultiOption(i)"
@@ -153,7 +161,7 @@
               <span
                 class="flex items-center justify-center w-6 h-6 border rounded text-xs font-semibold flex-shrink-0 transition-colors"
                 :class="
-                  answers[currentIdx]?.includes(String.fromCharCode(65 + i))
+                  answers[currentIdx]?.includes(toOriginalLetter(questions[currentIdx], i))
                     ? 'bg-primary border-primary text-primary-foreground'
                     : 'border-border text-muted-foreground'
                 "
@@ -174,14 +182,14 @@
               class="flex items-start gap-2.5 px-3.5 py-2.5 border border-border rounded-md cursor-pointer transition-colors duration-200 hover:border-primary hover:bg-primary/5 hover:translate-x-0.5"
               :class="{
                 'border-primary bg-primary/5':
-                  answers[currentIdx] === String.fromCharCode(65 + i),
+                  answers[currentIdx] === toOriginalLetter(questions[currentIdx], i),
               }"
-              @click="answers[currentIdx] = String.fromCharCode(65 + i)"
+              @click="answers[currentIdx] = toOriginalLetter(questions[currentIdx], i)"
             >
               <span
                 class="flex items-center justify-center w-6 h-6 border rounded text-xs font-semibold flex-shrink-0 transition-colors"
                 :class="
-                  answers[currentIdx] === String.fromCharCode(65 + i)
+                  answers[currentIdx] === toOriginalLetter(questions[currentIdx], i)
                     ? 'bg-primary border-primary text-primary-foreground'
                     : 'border-border text-muted-foreground'
                 "
@@ -290,7 +298,7 @@
             正确率 {{ Math.round(score / questions.length * 100) }}% · 答对 {{ correctSet.size }} 题 · 答错 {{ wrongSet.size }} 题
           </p>
           <p v-if="hasFailedBaoMing" class="mt-2 text-xs font-medium text-destructive">
-            保命题答错，综合成绩按 0 分计
+            重要题目答错，综合成绩按 0 分计
           </p>
         </div>
 
@@ -323,7 +331,7 @@
             <div class="flex items-center gap-2">
               <span class="text-xs font-bold text-muted-foreground w-6 tabular-nums">{{ wi + 1 }}</span>
               <Badge variant="outline">{{ questions[wi].type }}</Badge>
-              <Badge v-if="isBaoMingQuestion(wi)" variant="destructive">保命题</Badge>
+              <Badge v-if="isBaoMingQuestion(wi)" variant="destructive">重要题目</Badge>
             </div>
 
             <!-- 题干 -->
@@ -344,15 +352,15 @@
                 :key="j"
                 class="text-xs px-2.5 py-1.5 border border-transparent flex items-center gap-2.5"
                 :class="{
-                  'border-success/30 bg-success/[0.06] dark:bg-success/[0.10]': wrongDetails[wi]?.answer?.includes(String.fromCharCode(65 + j)),
-                  'border-destructive/30 bg-destructive/[0.06] dark:bg-destructive/[0.08]': answers[wi] === String.fromCharCode(65 + j) && !wrongDetails[wi]?.answer?.includes(String.fromCharCode(65 + j)),
+                  'border-success/30 bg-success/[0.06] dark:bg-success/[0.10]': wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
+                  'border-destructive/30 bg-destructive/[0.06] dark:bg-destructive/[0.08]': isAnswerSelected(wi, j) && !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
                 }"
               >
                 <span class="w-5 h-5 flex items-center justify-center border text-[10px] font-semibold flex-shrink-0"
                   :class="{
-                    'border-success bg-success text-success-foreground': wrongDetails[wi]?.answer?.includes(String.fromCharCode(65 + j)),
-                    'border-destructive bg-destructive text-destructive-foreground': answers[wi] === String.fromCharCode(65 + j) && !wrongDetails[wi]?.answer?.includes(String.fromCharCode(65 + j)),
-                    'border-border text-muted-foreground': !wrongDetails[wi]?.answer?.includes(String.fromCharCode(65 + j)) && answers[wi] !== String.fromCharCode(65 + j),
+                    'border-success bg-success text-success-foreground': wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
+                    'border-destructive bg-destructive text-destructive-foreground': isAnswerSelected(wi, j) && !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)),
+                    'border-border text-muted-foreground': !wrongDetails[wi]?.answer?.includes(toOriginalLetter(questions[wi], j)) && !isAnswerSelected(wi, j),
                   }"
                 >{{ String.fromCharCode(65 + j) }}</span>
                 <KatexRender class="text-xs" :text="stripOpt(opt)" />
@@ -367,7 +375,7 @@
               </div>
               <div class="flex gap-2">
                 <span class="text-muted-foreground w-9 flex-shrink-0">正确</span>
-                <KatexRender class="text-success font-medium" :text="wrongDetails[wi]?.answer || '?'" />
+                <KatexRender class="text-success font-medium" :text="toDisplayAnswer(questions[wi], wrongDetails[wi]?.answer) || '?'" />
               </div>
             </div>
 
@@ -438,6 +446,7 @@ import * as api from "../api";
 import { useExamHistory } from "../composables/useExamHistory";
 import axios from "axios";
 import { Star, Ruler, Trophy, ThumbsUp, TrendingUp } from 'lucide-vue-next'
+import { applyShuffle, toOriginalLetter, toDisplayAnswer } from '../lib/utils'
 
 const props = defineProps({ examInfo: { type: Object, required: true } });
 
@@ -466,7 +475,7 @@ const { saveExam } = useExamHistory();
 const showExitDialog = ref(false);
 const showSubmitDialog = ref(false);
 
-const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．]\s*)+/, '')
+const stripOpt = (s) => (s || '').replace(/^(?:[A-Za-z]\s*[.、)）：:．（）—–\-]\s*)+/, '')
 
 /** 按序号升序排列的错误题号列表 */
 const sortedWrong = computed(() => Array.from(wrongSet.value).sort((a, b) => a - b));
@@ -485,7 +494,7 @@ const isBaoMingQuestion = (index) => questions.value[index]?.meta?.isBaoMing ===
 
 /** 等级评语文本 */
 const gradeText = computed(() => {
-  if (hasFailedBaoMing.value) return '保命题失守，综合成绩归零'
+  if (hasFailedBaoMing.value) return '重要题目失守，综合成绩归零'
   if (score.value === questions.value.length) return '满分！太厉害了！'
   if (score.value / questions.value.length >= 0.8) return '优秀，继续加油！'
   if (score.value / questions.value.length >= 0.6) return '不错，还有进步空间'
@@ -503,6 +512,8 @@ const genPaper = async () => {
   }
   const r = await axios.get("/generate-paper", { params });
   questions.value = r.data;
+  // 打乱每个题目的选项
+  questions.value.forEach(q => applyShuffle(q));
   answers.value = Array(questions.value.length).fill(null);
   markedSet.value = new Set();
   currentIdx.value = 0;
@@ -555,7 +566,7 @@ const toggleMark = () => {
  * @param {number} i - 选项索引 (0=A, 1=B, ...)
  */
 function toggleMultiOption(i) {
-  const l = String.fromCharCode(65 + i);
+  const l = toOriginalLetter(questions.value[currentIdx.value], i);
   if (!Array.isArray(answers.value[currentIdx.value]))
     answers.value[currentIdx.value] = [];
   const a = [...answers.value[currentIdx.value]];
@@ -596,8 +607,14 @@ const confirmSubmit = () => {
   submitExam();
 };
 
-const fmtAns = (a, q) =>
-  q.type === "多选题" && Array.isArray(a) ? a.join(", ") : a || "";
+const fmtAns = (a, q) => toDisplayAnswer(q, a) || "";
+
+/** 多选题兼容：判断用户是否选了某选项 */
+const isAnswerSelected = (wi, j) => {
+  const ans = answers.value[wi]
+  const letter = toOriginalLetter(questions.value[wi], j)
+  return Array.isArray(ans) ? ans.includes(letter) : ans === letter
+}
 
 /**
  * 交卷判分：逐题提交答案，统计正确/错误，满分时触发碎屑动画

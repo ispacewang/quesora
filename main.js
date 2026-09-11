@@ -8,7 +8,11 @@ const createServer = require('./backend/app.js');
 const PORT = 13002;
 let serverInstance = null;
 let mainWindow = null;
+let splashWindow = null;
+let splashShownAt = 0;
+let splashCloseTimer = null;
 let ipcRegistered = false;
+let updateAvailable = false;
 let updateReady = false;
 let updateInstalling = false;
 let updateState = { status: 'idle' };
@@ -18,6 +22,56 @@ let updateFeedResolvePromise = null;
 const DEFAULT_GITEA_RELEASE_PAGE_URL = 'http://10.13.20.11:3000/ispacewang/question/releases/tag/v2.5.7';
 const UPDATE_FEED_URL_OVERRIDE = process.env.QUESORA_UPDATE_URL || '';
 const GITEA_RELEASE_PAGE_URL = process.env.QUESORA_RELEASE_PAGE_URL || DEFAULT_GITEA_RELEASE_PAGE_URL;
+const SPLASH_MIN_DURATION = 1000;
+
+function isDevelopment() {
+  return process.env.NODE_ENV === 'development' || process.argv.some(arg => arg.includes('--dev'));
+}
+
+function createSplashWindow() {
+  const splash = new BrowserWindow({
+    width: 520,
+    height: 390,
+    frame: false,
+    resizable: false,
+    movable: false,
+    show: false,
+    skipTaskbar: true,
+    center: true,
+    backgroundColor: '#fffaf2',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  splashWindow = splash;
+  splashShownAt = Date.now();
+  splash.once('ready-to-show', () => splash.showInactive());
+  splash.on('closed', () => {
+    if (splashWindow === splash) splashWindow = null;
+  });
+  splash.loadFile(path.join(__dirname, isDevelopment() ? 'frontend/public/splash.html' : 'frontend/dist/splash.html'));
+}
+
+function closeSplashWindow() {
+  if (splashCloseTimer) return;
+
+  const splash = splashWindow;
+  const finish = () => {
+    splashCloseTimer = null;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+    if (splash && !splash.isDestroyed()) splash.close();
+  };
+
+  if (!splash) {
+    finish();
+    return;
+  }
+
+  const remaining = Math.max(0, SPLASH_MIN_DURATION - (Date.now() - splashShownAt));
+  splashCloseTimer = setTimeout(finish, remaining);
+}
 
 function sendUpdateState(state) {
   updateState = { ...updateState, ...state };
@@ -129,14 +183,16 @@ function closeBackendServer(done) {
 }
 
 function setupAutoUpdater() {
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
 
   autoUpdater.on('checking-for-update', () => sendUpdateState({ status: 'checking' }));
   autoUpdater.on('update-available', (info) => {
-    sendUpdateState({ status: 'downloading', version: info.version });
+    updateAvailable = true;
+    sendUpdateState({ status: 'available', version: info.version, progress: 0 });
   });
   autoUpdater.on('update-not-available', (info) => {
+    updateAvailable = false;
     sendUpdateState({ status: 'not-available', version: info.version });
   });
   autoUpdater.on('download-progress', (progress) => {
@@ -146,6 +202,7 @@ function setupAutoUpdater() {
     });
   });
   autoUpdater.on('update-downloaded', (info) => {
+    updateAvailable = false;
     updateReady = true;
     sendUpdateState({ status: 'downloaded', version: info.version, progress: 100 });
   });
@@ -155,7 +212,7 @@ function setupAutoUpdater() {
 }
 
 function checkForUpdates() {
-  if (['checking', 'downloading', 'downloaded', 'installing'].includes(updateState.status)) {
+  if (['checking', 'available', 'downloading', 'downloaded', 'installing'].includes(updateState.status)) {
     return;
   }
   if (!app.isPackaged) {
@@ -167,6 +224,21 @@ function checkForUpdates() {
   resolveUpdateFeedUrl().then(() => autoUpdater.checkForUpdates()).catch((error) => {
     sendUpdateState({ status: 'error', error: error?.message || '检查更新失败' });
   });
+}
+
+async function downloadUpdate() {
+  if (!updateAvailable || updateReady || ['downloading', 'installing'].includes(updateState.status)) {
+    return false;
+  }
+
+  sendUpdateState({ status: 'downloading', progress: 0 });
+  try {
+    await autoUpdater.downloadUpdate();
+    return true;
+  } catch (error) {
+    sendUpdateState({ status: 'error', error: error?.message || '下载更新失败' });
+    return false;
+  }
 }
 
 function registerIpcHandlers() {
@@ -188,6 +260,7 @@ function registerIpcHandlers() {
     checkForUpdates();
     return updateState;
   });
+  ipcMain.handle('download-update', () => downloadUpdate());
   ipcMain.handle('restart-and-install-update', () => {
     if (!updateReady || updateInstalling) return false;
     updateInstalling = true;
@@ -209,9 +282,10 @@ function createWindow () {
     minWidth: 800,
     minHeight: 500,
     frame: false,
+    show: false,
     icon: path.join(__dirname, 'frontend/dist/favicon1.ico'),
     backgroundMaterial: 'mica',
-    backgroundColor: '#00000000',
+    backgroundColor: '#f6f8fb',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -221,7 +295,7 @@ function createWindow () {
   mainWindow = win;
   win.setMenu(null);
 
-  const isDev = process.env.NODE_ENV === 'development' || process.argv.some(arg => arg.includes('--dev'));
+  const isDev = isDevelopment();
 
   if (isDev) {
     win.loadURL('http://localhost:5173');
@@ -235,6 +309,7 @@ function createWindow () {
   win.on('unmaximize', () => win.webContents.send('window-state-changed', false));
   win.on('enter-full-screen', () => win.webContents.send('window-state-changed', 'fullscreen'));
   win.on('leave-full-screen', () => win.webContents.send('window-state-changed', false));
+  win.once('ready-to-show', closeSplashWindow);
   win.webContents.once('did-finish-load', () => {
     win.webContents.send('update-state-changed', updateState);
     checkForUpdates();
@@ -244,6 +319,7 @@ function createWindow () {
 app.whenReady().then(() => {
   registerIpcHandlers();
   setupAutoUpdater();
+  createSplashWindow();
   const expressApp = createServer(app.getPath('userData'));
   serverInstance = expressApp.listen(PORT, () => {
     console.log(`✅ Express server running on http://localhost:${PORT}`);

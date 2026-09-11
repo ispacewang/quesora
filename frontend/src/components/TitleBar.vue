@@ -12,7 +12,17 @@ const updateState = ref({ status: 'idle' })
 const min = () => window.electronAPI?.minimizeWindow()
 const max = () => window.electronAPI?.maximizeWindow()
 const close = () => window.electronAPI?.closeWindow()
-const restartUpdate = () => window.electronAPI?.restartAndInstallUpdate()
+const downloadUpdate = () => {
+  const targetVersion = updateState.value.version ? `v${updateState.value.version}` : '新版本'
+  if (window.confirm(`发现 ${targetVersion}，是否下载更新？`)) {
+    window.electronAPI?.downloadUpdate()
+  }
+}
+const restartUpdate = () => {
+  if (window.confirm('更新已下载完成，是否现在重启并安装？')) {
+    window.electronAPI?.restartAndInstallUpdate()
+  }
+}
 
 onMounted(async () => {
   window.electronAPI?.onWindowStateChanged((max) => { isMaximized.value = max })
@@ -43,6 +53,15 @@ onMounted(async () => {
       >
         <RotateCcw class="w-3 h-3" />
         重启更新
+      </button>
+      <button
+        v-else-if="updateState.status === 'available'"
+        class="h-[24px] inline-flex items-center gap-1 px-2 mr-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/10 hover:bg-primary/15 transition-colors"
+        @click="downloadUpdate"
+        title="下载更新"
+      >
+        <Download class="w-3 h-3" />
+        下载更新
       </button>
       <span
         v-else-if="updateState.status === 'checking' || updateState.status === 'downloading' || updateState.status === 'installing'"

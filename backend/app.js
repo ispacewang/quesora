@@ -8,75 +8,86 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const db = require("./db");
+const { judgeAnswer } = require("./question-judge");
+const { buildQuestionTypeFilter } = require("./question-types");
 
 /**
- * 解析 Excel/CSV 题库文件，返回标准化题目数组
- * @param {string} filePath — 上传的 Excel/CSV 文件路径
- * @returns {Array<{question, options, answer, explanation, type, meta}>} 题目对象数组
+ * 把一行表格数据转成标准题目对象
+ * @param {Object} row — sheet_to_json 的一行
+ * @returns {{question, options, answer, explanation, type, meta}} 题目对象（题干为空视为无效行）
  */
-function parseQuestions(filePath) {
+function rowToQuestion(row) {
+  const originalType = row["题型"] || "";
+  let determinedType = "单选题";
+  if (originalType.includes("多选")) {
+    determinedType = "多选题";
+  } else if (originalType.includes("判断")) {
+    determinedType = "判断题";
+  } else if (originalType.includes("简答")) {
+    determinedType = "简答题";
+  } else if (originalType.includes("填空")) {
+    determinedType = "填空题";
+  }
+
+  let opts = [];
+  if (row["选项"]) {
+    opts = row["选项"]
+      .split(/\||｜/)
+      .map((s) => s.trim())
+      .map((s) => s.replace(/^(?:[A-Za-z]\s*[.、)）：:．（）—–\-]\s*)+/, ''))
+      .filter(Boolean);
+  } else if (determinedType === "判断题") {
+    opts = ["正确", "错误"];
+  }
+
+  let answer = (row["答案"] || "").toString().trim();
+  switch (determinedType) {
+    case "单选题":
+    case "多选题":
+      answer = answer.replace(/，/g, ",").replace(/\s+/g, "").toUpperCase();
+      break;
+  }
+
+  const explanation = row["解析"] || row["说明"] || "";
+  const meta = {
+    一级纲要: row["一级纲要"] || "",
+    二级纲要: row["二级纲要"] || "",
+    题目分类: row["题目分类"] || "",
+    题目依据: row["题目依据"] || "",
+    试题分数: row["试题分数"] || "",
+    试题编号: row["试题编号"] || "",
+    备注: row["备注"] || "",
+  };
+  // 备注中含「重要题目」（旧文件写「保命题」）则标记
+  if (meta["备注"] && /重要题目|保命题/.test(meta["备注"])) {
+    meta.isBaoMing = true;
+  }
+
+  return {
+    question: (row["题干"] || "").toString().trim(),
+    options: JSON.stringify(opts),
+    answer: answer,
+    explanation: explanation,
+    type: determinedType,
+    meta: JSON.stringify(meta),
+  };
+}
+
+/**
+ * 解析 Excel/CSV 题库文件：每个 sheet 单独返回，题目为空的 sheet 跳过
+ * @param {string} filePath — 上传的 Excel/CSV 文件路径（解析后删除临时文件）
+ * @returns {Array<{sheetName: string, questions: Array}>} 各 sheet 的题目
+ */
+function parseWorkbook(filePath) {
   try {
     const workbook = xlsx.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(sheet);
-
-    return data.map((row) => {
-      const originalType = row["题型"] || "";
-      let determinedType = "单选题";
-      if (originalType.includes("多选")) {
-        determinedType = "多选题";
-      } else if (originalType.includes("判断")) {
-        determinedType = "判断题";
-      } else if (originalType.includes("简答")) {
-        determinedType = "简答题";
-      } else if (originalType.includes("填空")) {
-        determinedType = "填空题";
-      }
-
-      let opts = [];
-      if (row["选项"]) {
-        opts = row["选项"]
-          .split(/\||｜/)
-          .map((s) => s.trim())
-          .map((s) => s.replace(/^(?:[A-Za-z]\s*[.、)）：:．]\s*)+/, ''))
-          .filter(Boolean);
-      } else if (determinedType === "判断题") {
-        opts = ["正确", "错误"];
-      }
-
-      let answer = (row["答案"] || "").toString().trim();
-      switch (determinedType) {
-        case "单选题":
-        case "多选题":
-          answer = answer.replace(/，/g, ",").replace(/\s+/g, "").toUpperCase();
-          break;
-      }
-
-      const explanation = row["解析"] || row["说明"] || "";
-      const meta = {
-        一级纲要: row["一级纲要"] || "",
-        二级纲要: row["二级纲要"] || "",
-        题目分类: row["题目分类"] || "",
-        题目依据: row["题目依据"] || "",
-        试题分数: row["试题分数"] || "",
-        试题编号: row["试题编号"] || "",
-        备注: row["备注"] || "",
-      };
-      // 备注中含「保命题」则标记
-      if (meta["备注"] && meta["备注"].includes("保命题")) {
-        meta.isBaoMing = true;
-      }
-
-      return {
-        question: row["题干"] || "",
-        options: JSON.stringify(opts),
-        answer: answer,
-        explanation: explanation,
-        type: determinedType,
-        meta: JSON.stringify(meta),
-      };
-    });
+    const sheets = [];
+    for (const sheetName of workbook.SheetNames) {
+      const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName] || {});
+      const questions = data.map(rowToQuestion).filter((q) => q.question);
+      if (questions.length) sheets.push({ sheetName, questions });
+    }
+    return sheets;
   } finally {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -97,7 +108,7 @@ function createServer(userDataPath) {
   app.use(cors());
   app.use(express.json());
 
-  // ─── 上传题库（Excel/CSV）───
+  // ─── 上传题库（Excel/CSV，多 sheet 生成多个题库）───
   app.post("/upload", upload.single("file"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -110,61 +121,54 @@ function createServer(userDataPath) {
     if (!bankName) {
       return res.status(400).json({ error: "无效的文件名，无法生成题库名" });
     }
-    const existingBank = db
-      .prepare("SELECT id FROM banks WHERE name = ?")
-      .get(bankName);
-    if (existingBank) {
-      return res.status(409).json({
-        error: `题库 "${bankName}" 已存在。请使用其他文件名或先删除现有题库。`,
-      });
-    }
-    const now = new Date();
-    const timestamp = `${now.getFullYear()}${(now.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}_${now
-      .getHours()
-      .toString()
-      .padStart(2, "0")}${now.getMinutes().toString().padStart(2, "0")}${now
-      .getSeconds()
-      .toString()
-      .padStart(2, "0")}`;
-    const uniqueBankName = `${bankName}`;
 
     try {
       console.time("parseFile");
-      const questions = parseQuestions(req.file.path);
+      const sheets = parseWorkbook(req.file.path);
       console.timeEnd("parseFile");
 
-      const insertMany = db.transaction((bankName, questionsToInsert) => {
-        const bankInfo = db
-          .prepare("INSERT INTO banks (name) VALUES (?)")
-          .run(bankName);
-        const bankId = bankInfo.lastInsertRowid;
+      if (sheets.length === 0) {
+        return res.status(400).json({ error: "文件中没有解析到题目，请检查表头是否为：题型、题干、选项、答案、解析" });
+      }
+
+      // 单 sheet 用文件名作题库名；多 sheet 逐个生成「文件名-sheet名」
+      const targets = sheets.map((s) => ({
+        name: sheets.length > 1 ? `${bankName}-${s.sheetName}` : bankName,
+        questions: s.questions,
+      }));
+
+      const duplicated = targets
+        .filter((t) => db.prepare("SELECT id FROM banks WHERE name = ?").get(t.name))
+        .map((t) => `"${t.name}"`);
+      if (duplicated.length) {
+        return res.status(409).json({
+          error: `题库 ${duplicated.join("、")} 已存在。请使用其他文件名或先删除现有题库。`,
+        });
+      }
+
+      const insertAll = db.transaction((list) => {
+        const insertBank = db.prepare("INSERT INTO banks (name) VALUES (?)");
         const stmt = db.prepare(
           `INSERT INTO questions (bank_id, question, options, answer, explanation, type, meta) VALUES (?, ?, ?, ?, ?, ?, ?)`
         );
-        for (const q of questionsToInsert) {
-          stmt.run(
-            bankId,
-            q.question,
-            q.options,
-            q.answer,
-            q.explanation,
-            q.type,
-            q.meta
-          );
-        }
-        return { count: questionsToInsert.length };
+        return list.map(({ name, questions }) => {
+          const bankId = insertBank.run(name).lastInsertRowid;
+          for (const q of questions) {
+            stmt.run(bankId, q.question, q.options, q.answer, q.explanation, q.type, q.meta);
+          }
+          return { name, count: questions.length };
+        });
       });
 
       console.time("dbWrite");
-      const result = insertMany(uniqueBankName, questions);
+      const banks = insertAll(targets);
       console.timeEnd("dbWrite");
 
       res.json({
         success: true,
-        count: result.count,
-        bankName: uniqueBankName,
+        count: banks.reduce((sum, b) => sum + b.count, 0),
+        bankName: banks[0].name,
+        banks,
       });
     } catch (e) {
       console.error("上传处理失败:", e);
@@ -178,6 +182,36 @@ function createServer(userDataPath) {
       const stmt = db.prepare("SELECT name FROM banks");
       const rows = stmt.all();
       res.json({ banks: rows.map((r) => r.name) });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── 各题型题目数量（题型筛选按钮上方的计数） ───
+  app.get("/question-counts", (req, res) => {
+    const { bankName } = req.query;
+    if (!bankName) return res.status(400).json({ error: "缺少题库名" });
+    try {
+      const bankRow = db
+        .prepare("SELECT id FROM banks WHERE name=?")
+        .get(bankName);
+      if (!bankRow) return res.status(400).json({ error: "题库不存在" });
+
+      const rows = db
+        .prepare("SELECT type, meta FROM questions WHERE bank_id = ?")
+        .all(bankRow.id);
+      const counts = { all: 0, baoMing: 0 };
+      for (const r of rows) {
+        counts.all++;
+        const type = r.type || "单选题";
+        counts[type] = (counts[type] || 0) + 1;
+        if (r.meta) {
+          try {
+            if (JSON.parse(r.meta).isBaoMing) counts.baoMing++;
+          } catch {}
+        }
+      }
+      res.json(counts);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -242,6 +276,8 @@ function createServer(userDataPath) {
   });
 
   const currentProgress = new Map();
+  // 随机模式：每个筛选组合维护一个打乱的索引队列，出队取题，队列耗尽才重新打乱，避免重复出题
+  const randomQueues = new Map();
   // ─── 答题模式：顺序/随机获取单题 ───
   app.get("/question", (req, res) => {
     const { bankName, types } = req.query;
@@ -257,24 +293,12 @@ function createServer(userDataPath) {
       if (!bankRow) return res.status(400).json({ error: "题库不存在" });
       const bankId = bankRow.id;
 
-      // 题型过滤
-      const allowedTypes = new Set(['单选题', '多选题', '判断题', '简答题', '填空题']);
-      let typeFilter = "type != ?";
-      let typeArgs = ['简答题'];
-      let typeKey = 'default';
-      if (types) {
-        const typeList = types
-          .split(',')
-          .map(t => t.trim())
-          .filter(t => allowedTypes.has(t));
-        if (typeList.length > 0) {
-          typeKey = typeList.slice().sort().join('|');
-          typeFilter = `type IN (${typeList.map(() => '?').join(',')})`;
-          typeArgs = typeList;
-        }
-      }
+      // 题型过滤：不指定时包含全部导入题型（含简答题/填空题）
+      const { sql: typeFilter, args: typeArgs, key: typeKey } =
+        buildQuestionTypeFilter(types);
 
       let q;
+      let finished = false; // 是否为当前筛选池的最后一道题（答完可提示重来/退出）
       if (order) {
         const allQuestions = db
           .prepare(`SELECT * FROM questions WHERE bank_id = ? AND ${typeFilter} ORDER BY id ASC`)
@@ -300,6 +324,7 @@ function createServer(userDataPath) {
         }
 
         q = candidates[nextIndex];
+        finished = nextIndex === candidates.length - 1;
 
         currentProgress.set(progressKey, nextIndex);
       } else {
@@ -316,8 +341,21 @@ function createServer(userDataPath) {
         if (!candidates || candidates.length === 0) {
           return res.status(400).json({ error: "题库为空" });
         }
-        const idx = Math.floor(Math.random() * candidates.length);
+        const progressKey = `${bankId}:${typeKey}:${baoMingOnly}`;
+        // 复用/重建打乱队列：队列耗尽或池子数量变化时重新打乱（poolLen 记录构建时的池子大小）
+        let entry = randomQueues.get(progressKey);
+        if (!entry || entry.q.length === 0 || entry.poolLen !== candidates.length) {
+          const q = candidates.map((_, i) => i);
+          for (let i = q.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [q[i], q[j]] = [q[j], q[i]];
+          }
+          entry = { q, poolLen: candidates.length };
+          randomQueues.set(progressKey, entry);
+        }
+        const idx = entry.q.pop();
         q = candidates[idx];
+        finished = entry.q.length === 0;
       }
 
       if (!q) {
@@ -330,6 +368,7 @@ function createServer(userDataPath) {
         options: JSON.parse(q.options),
         type: q.type,
         meta: q.meta ? JSON.parse(q.meta) : {},
+        finished,
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -350,31 +389,11 @@ function createServer(userDataPath) {
         return res.status(404).json({ error: "题目不存在" });
       }
 
-      let correct = false;
-      switch (q.type) {
-        case "多选题": {
-          const stdArr = q.answer
-            .replace(/,/g, "")
-            .split("")
-            .map((s) => s.trim().toUpperCase())
-            .filter(Boolean)
-            .sort();
-          const usrArr = (Array.isArray(userAnswer) ? userAnswer : [userAnswer])
-            .map((s) => String(s).trim().toUpperCase())
-            .filter(Boolean)
-            .sort();
-          correct = JSON.stringify(stdArr) === JSON.stringify(usrArr);
-          break;
-        }
-        case "判断题":
-        case "单选题":
-        default: {
-          correct =
-            q.answer.trim().toUpperCase() ===
-            String(userAnswer).trim().toUpperCase();
-          break;
-        }
-      }
+      const correct = judgeAnswer({
+        type: q.type,
+        standardAnswer: q.answer,
+        userAnswer,
+      });
       res.json({ correct, explanation: q.explanation, answer: q.answer });
     } catch (err) {
       res.status(500).json({ error: err.message });
