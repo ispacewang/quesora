@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quesora</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        background: #fffaf2;
+        color: #2b2b2b;
+      }
+
+      * { box-sizing: border-box; }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #fffaf2;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        -webkit-app-region: drag;
+      }
+
+      .splash {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        isolation: isolate;
+      }
+
+      .splash::before,
+      .splash::after {
+        content: "";
+        position: absolute;
+        width: 310px;
+        height: 310px;
+        border-radius: 50%;
+        border: 1px solid rgba(240, 127, 28, 0.15);
+        pointer-events: none;
+      }
+
+      .splash::before {
+        animation: orbit-spin 7s linear infinite;
+        border-left-color: rgba(240, 127, 28, 0.72);
+        border-bottom-color: rgba(240, 127, 28, 0.36);
+      }
+
+      .splash::after {
+        width: 258px;
+        height: 258px;
+        border-color: rgba(111, 145, 167, 0.12);
+        animation: orbit-spin 5s linear infinite reverse;
+      }
+
+      .splash-art {
+        position: relative;
+        z-index: 1;
+        width: 314px;
+        height: 314px;
+        object-fit: contain;
+        user-select: none;
+        -webkit-user-drag: none;
+        filter: drop-shadow(0 16px 22px rgba(225, 126, 39, 0.16));
+        animation: art-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both, art-breathe 2.8s ease-in-out 620ms infinite;
+      }
+
+      .splash-dot {
+        position: absolute;
+        z-index: 2;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #f28b27;
+        box-shadow: 0 0 0 5px rgba(242, 139, 39, 0.1);
+        animation: dot-in 500ms ease-out both, dot-float 2.4s ease-in-out 500ms infinite;
+      }
+
+      .splash-dot--one { top: 78px; left: 131px; animation-delay: 150ms, 650ms; }
+      .splash-dot--two { top: 111px; right: 119px; background: #7797a9; animation-delay: 250ms, 750ms; }
+      .splash-dot--three { bottom: 94px; left: 118px; background: #f4b260; animation-delay: 350ms, 850ms; }
+      .splash-dot--four { right: 131px; bottom: 79px; animation-delay: 450ms, 950ms; }
+
+      .splash-caption {
+        position: absolute;
+        bottom: 23px;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        letter-spacing: 0.16em;
+        color: rgba(43, 43, 43, 0.68);
+        animation: caption-in 500ms ease-out 260ms both;
+      }
+
+      .splash-caption::before {
+        content: "";
+        width: 18px;
+        height: 2px;
+        border-radius: 99px;
+        background: #f28b27;
+      }
+
+      @keyframes art-in {
+        from { opacity: 0; transform: scale(0.72); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes art-breathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.035); }
+      }
+
+      @keyframes orbit-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      @keyframes dot-in {
+        from { opacity: 0; transform: scale(0.2); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes dot-float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-7px); }
+      }
+
+      @keyframes caption-in {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .splash::before,
+        .splash::after,
+        .splash-art,
+        .splash-dot {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="splash" aria-label="Quesora 正在启动">
+      <span class="splash-dot splash-dot--one" aria-hidden="true"></span>
+      <span class="splash-dot splash-dot--two" aria-hidden="true"></span>
+      <span class="splash-dot splash-dot--three" aria-hidden="true"></span>
+      <span class="splash-dot splash-dot--four" aria-hidden="true"></span>
+      <img class="splash-art" src="./splash-illustration.png" alt="Quesora 学习功能插画" />
+      <div class="splash-caption">QUESORA</div>
+    </main>
+  </body>
+</html>

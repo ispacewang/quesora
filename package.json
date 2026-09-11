@@ -1,6 +1,6 @@
 {
   "name": "quesora",
-  "version": "2.6.2",
+  "version": "2.6.0",
   "description": "答题，刷题，考试，AI生题，AI判题",
   "main": "main.js",
   "productName": "Quesora",
@@ -46,7 +46,7 @@
       "!CHANGELOG.md"
     ],
     "win": {
-      "target":  ["nsis", "appx"],
+      "target": ["nsis"],
       "icon": "frontend/public/icon-512x512.png"
     },
     "nsis": {
@@ -57,16 +57,6 @@
       "createDesktopShortcut": true,
       "artifactName": "Quesora-Setup-${version}.${ext}",
       "shortcutName": "Quesora"
-    },
-    "appx": {
-      "applicationId": "Quesora",
-      "backgroundColor": "#1c1c1e",
-      "displayName": "Quesora",
-      "publisherDisplayName": "ispace王",
-      "publisher": "CN=4499F0C4-83E9-49C6-B136-A9BA2D5FCE8F",
-      "identityName": "20029ispace.Quesora",
-      "showNameOnTiles": true,
-      "setBuildNumber": false
     }
   },
   "dependencies": {
