@@ -130,7 +130,7 @@
       <DialogHeader>
         <DialogTitle>上传题库</DialogTitle>
         <DialogDescription>
-          支持 Excel/CSV，题型包括单选、多选、判断、简答、填空；表头：题型、题干、选项、答案、解析
+          支持 Excel/CSV，多 sheet 会分别生成题库；题型包括单选、多选、判断、简答、填空；表头：题型、题干、选项、答案、解析
           <button
             @click="downloadTemplate"
             class="text-primary underline underline-offset-2 hover:text-primary/80 cursor-pointer"
@@ -190,8 +190,6 @@ const genBankName = ref('')
 const genStatus = ref(null)
 const genModel = ref(selectedModel.value || 'deepseek-v4-pro')
 const genModels = computed(() => availableModels.value.length ? availableModels.value : [{ id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }, { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }])
-let genPollTimer = null
-
 /**
  * 发起 AI 题库生成请求，成功后开始轮询进度
  * @returns {Promise<void>}
@@ -337,8 +335,16 @@ const onFileChange = (e) => { const file = e.target?.files?.[0]; if (file) doUpl
  * @returns {Promise<void>}
  */
 const doUpload = async (file) => {
-  try { await uploadFile(file); toast.success('上传成功'); dialogVisible.value = false; fetchAll() }
-  catch { toast.error('上传失败') }
+  try {
+    const res = await uploadFile(file)
+    const banks = res.data.banks || []
+    toast.success(banks.length > 1
+      ? `已生成 ${banks.length} 个题库：${banks.map(b => `${b.name}(${b.count}题)`).join('、')}`
+      : `上传成功，共 ${res.data.count} 题`)
+    dialogVisible.value = false
+    fetchAll()
+  }
+  catch (e) { toast.error(e.response?.data?.error || '上传失败') }
 }
 
 /**
