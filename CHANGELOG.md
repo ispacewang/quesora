@@ -1,5 +1,17 @@
 # 答题小助手 v2.0 更新日志
 
+## 未发布
+
+### 新增与优化
+
+- AI 生题支持一次添加最多 5 份参考附件，并以可移除的文件卡片展示解析状态。
+- AI 请求改用 Electron 网络栈，遵从系统代理配置；保存 API Key 时会先验证可用性并保留明确失败原因。
+
+### 移除与维护
+
+- 移除 APPX/MSIX 构建命令、打包指南、图标资源与清单补丁脚本，仅保留 Windows NSIS 安装包构建。
+- 停止跟踪并忽略本地签名证书、运行时数据库及上传残留，避免将本机数据提交到仓库。
+
 ## 🎨 UI 框架迁移：Element Plus → Shadcn-Vue + Tailwind CSS v4
 
 全面替换 UI 框架，从 Element Plus 迁移至 Shadcn-Vue（基于 Radix-Vue + Tailwind CSS v4）。

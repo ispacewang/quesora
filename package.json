@@ -9,8 +9,7 @@
     "dev": "cross-env NODE_ENV=development electron .",
     "build:vue": "cd frontend && npm run build",
     "rebuild": "electron-rebuild -f",
-    "build:win": "npm run build:vue && electron-builder --win --x64",
-    "build:msix": "npm run build:vue && electron-builder --win --x64 --config.win.target=appx"
+    "build:win": "npm run build:vue && electron-builder --win --x64"
   },
   "build": {
     "appId": "com.ispace.quesora",
@@ -45,9 +44,7 @@
       "!backend/database/*.db",
       "!backend/node_modules/",
       "!generate_tiles.py",
-      "!patch_appx_manifest.py",
       "!test-cert.pfx",
-      "!MSIX-GUIDE.md",
       "!CHANGELOG.md"
     ],
     "win": {

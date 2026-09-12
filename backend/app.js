@@ -102,7 +102,7 @@ function parseWorkbook(filePath) {
 function createServer(userDataPath) {
   const app = express();
   const uploadDir = userDataPath ? path.join(userDataPath, 'uploads') : os.tmpdir();
-  // 确保上传目录存在（EXE/APPX 都需要）
+  // 确保上传目录存在（桌面安装包运行时需要）
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
   const upload = multer({ dest: uploadDir });
   app.use(cors());

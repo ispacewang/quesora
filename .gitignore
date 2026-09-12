@@ -4,9 +4,15 @@ dist
 models
 .vscode
 ai-config.json
-.DS_StoreMSIX-GUIDE.md
+.DS_Store
 i.json
 m.json
-generate_tiles.py
 test-cert.pfx
+MSIX-GUIDE.md
+generate_tiles.py
+patch_appx_manifest.py
 wc.json
+build/appx/
+backend/uploads/
+backend/database/
+backend/quiz.db
