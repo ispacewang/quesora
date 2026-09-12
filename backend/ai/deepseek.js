@@ -17,51 +17,18 @@ const RECOMMENDED_MODELS = [
  * @param {object} opts — { temperature, max_tokens, model }
  * @returns {Promise<string>} 助手回复文本
  */
-function chat(apiKey, messages, opts = {}) {
+async function chat(apiKey, messages, opts = {}) {
   const { temperature = 0.7, max_tokens = 4096, model = DEFAULT_MODEL } = opts;
-
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens,
-      stream: false,
-    });
-
-    const req = https.request({
-      hostname: API_HOST,
-      path: '/v1/chat/completions',
-      method: 'POST',
-      timeout: 120000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Length': Buffer.byteLength(body),
-      },
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          if (json.error) {
-            reject(new Error(json.error.message || 'API 错误'));
-            return;
-          }
-          const content = json.choices?.[0]?.message?.content || '';
-          resolve(content);
-        } catch (e) {
-          reject(new Error(`解析响应失败: ${data.slice(0, 200)}`));
-        }
-      });
-    });
-
-    req.on('timeout', () => { req.destroy(); reject(new Error('API 请求超时')); });
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
+  const json = await requestJson('/v1/chat/completions', apiKey, {
+    model,
+    messages,
+    temperature,
+    max_tokens,
+    stream: false,
+  }, 120000);
+  const content = json.choices?.[0]?.message?.content || '';
+  if (!content) throw new Error('API 未返回可用内容');
+  return content;
 }
 
 /**
@@ -69,45 +36,79 @@ function chat(apiKey, messages, opts = {}) {
  * @param {string} apiKey
  * @returns {Promise<Array<{id:string, name:string}>>}
  */
-function fetchModels(apiKey) {
+async function fetchModels(apiKey) {
+  const json = await requestJson('/v1/models', apiKey, null, 15000);
+  const models = (json.data || [])
+    .filter(m => m.id && m.id.startsWith('deepseek'))
+    .map(m => ({ id: m.id, name: m.id }));
+
+  const seen = new Set(RECOMMENDED_MODELS.map(m => m.id));
+  const rest = models.filter(m => !seen.has(m.id));
+  return [...RECOMMENDED_MODELS, ...rest];
+}
+
+/**
+ * 通过 Electron 的 Chromium 网络栈发请求，以便遵从系统代理；在纯 Node 环境保留 HTTPS 回退。
+ * Electron net 文档：https://www.electronjs.org/docs/latest/api/net
+ */
+async function requestJson(pathname, apiKey, body, timeout) {
+  const url = `https://${API_HOST}${pathname}`;
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  if (body) headers['Content-Type'] = 'application/json';
+
+  try {
+    const { app, net } = require('electron');
+    if (app?.isReady?.() && net?.fetch) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await net.fetch(url, {
+          method: body ? 'POST' : 'GET',
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+        const text = await response.text();
+        return parseApiResponse(response.status, text);
+      } catch (err) {
+        if (err.name === 'AbortError') throw new Error('API 请求超时');
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  } catch (err) {
+    if (err.message !== "Cannot find module 'electron'") throw err;
+  }
+
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: API_HOST,
-      path: '/v1/models',
-      method: 'GET',
-      timeout: 15000,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
+      path: pathname,
+      method: body ? 'POST' : 'GET',
+      timeout,
+      headers: { ...headers, ...(body ? { 'Content-Length': Buffer.byteLength(JSON.stringify(body)) } : {}) },
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          if (json.error) {
-            // API 不支持 /v1/models 时返回推荐列表
-            resolve(RECOMMENDED_MODELS);
-            return;
-          }
-          const models = (json.data || [])
-            .filter(m => m.id && (m.id.startsWith('deepseek')))
-            .map(m => ({ id: m.id, name: m.id }));
-
-          // 推荐模型优先，再拼接其余
-          const seen = new Set(RECOMMENDED_MODELS.map(m => m.id));
-          const rest = models.filter(m => !seen.has(m.id));
-          resolve([...RECOMMENDED_MODELS, ...rest]);
-        } catch (e) {
-          resolve(RECOMMENDED_MODELS);
-        }
+        try { resolve(parseApiResponse(res.statusCode, data)); } catch (err) { reject(err); }
       });
     });
-
-    req.on('timeout', () => { req.destroy(); resolve(RECOMMENDED_MODELS); });
-    req.on('error', () => resolve(RECOMMENDED_MODELS));
+    req.on('timeout', () => { req.destroy(); reject(new Error('API 请求超时')); });
+    req.on('error', reject);
+    if (body) req.write(JSON.stringify(body));
     req.end();
   });
+}
+
+function parseApiResponse(status, text) {
+  let json;
+  try { json = JSON.parse(text); } catch { throw new Error(`API 响应无法解析（HTTP ${status}）`); }
+  if (status < 200 || status >= 300 || json.error) {
+    throw new Error(json.error?.message || `API 请求失败（HTTP ${status}）`);
+  }
+  return json;
 }
 
 module.exports = { chat, fetchModels, DEFAULT_MODEL, RECOMMENDED_MODELS };

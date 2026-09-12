@@ -52,6 +52,8 @@ export function useAiMode() {
         selectedModel.value = res.data.model
         localStorage.setItem('quiz-ai-model', res.data.model)
       }
+      if (res.data.models) availableModels.value = res.data.models
+      return res.data.models || []
     }
   }
 

@@ -33,16 +33,22 @@ function createAiRoutes() {
   const materials = new Map();
 
   // ─── POST /config：保存 API Key + 模型 ───
-  router.post('/config', (req, res) => {
+  router.post('/config', async (req, res) => {
     const { apiKey, model, provider } = req.body;
     if (!apiKey) return res.status(400).json({ error: '缺少 apiKey' });
-    cachedConfig = {
-      apiKey,
-      model: model || cachedConfig.model || 'deepseek-v4-pro',
-      provider: provider || 'deepseek',
-    };
-    saveConfig(cachedConfig);
-    res.json({ ok: true, model: cachedConfig.model });
+    try {
+      // 保存前验证，避免把“网络不可达”伪装成已配置成功。
+      const models = await fetchModels(apiKey);
+      cachedConfig = {
+        apiKey,
+        model: model || cachedConfig.model || 'deepseek-v4-pro',
+        provider: provider || 'deepseek',
+      };
+      saveConfig(cachedConfig);
+      res.json({ ok: true, model: cachedConfig.model, models });
+    } catch (err) {
+      res.status(400).json({ error: `无法验证 API Key：${err.message}` });
+    }
   });
 
   // ─── PUT /config/model：单独更新模型 ───
@@ -105,14 +111,24 @@ function createAiRoutes() {
     }
   });
 
+  // ─── DELETE /material/:id：用户移除卡片时同步释放解析缓存 ───
+  router.delete('/material/:id', (req, res) => {
+    materials.delete(req.params.id);
+    res.json({ ok: true });
+  });
+
   // ─── POST /generate ───
   router.post('/generate', async (req, res) => {
     const apiKey = cachedConfig.apiKey;
     if (!apiKey) return res.status(400).json({ error: '请先配置 API Key' });
 
-    const { total = 500, bankName, model, materialId } = req.body;
-    const material = materialId ? materials.get(materialId) : null;
-    if (materialId && !material) return res.status(400).json({ error: '附件已失效，请重新上传' });
+    const { total = 500, bankName, model, materialIds } = req.body;
+    const ids = Array.isArray(materialIds) ? materialIds : [];
+    const selectedMaterials = ids.map(id => materials.get(id));
+    if (selectedMaterials.some(item => !item)) return res.status(400).json({ error: '部分附件已失效，请重新上传' });
+    const material = selectedMaterials.length
+      ? { name: selectedMaterials.map(item => item.name).join('、'), text: selectedMaterials.map(item => `# 附件：${item.name}\n\n${item.text}`).join('\n\n') }
+      : null;
 
     const topic = (req.body.topic || '').trim() || (material ? material.name : '通用知识');
     const name = bankName || `AI题库_${topic}_${Date.now().toString(36)}`;

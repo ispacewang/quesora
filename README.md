@@ -19,7 +19,7 @@
 - 📤 **题库上传** — 支持 Excel / CSV 文件导入，自动解析题目（单选/多选/判断/简答/填空）；多 sheet 文件按 sheet 分别生成题库
 - 📝 **答题模式** — Bento 风格三栏布局（统计｜答题｜错题），题型筛选（选中项上方显示该类题量，按住 Shift 全显），实时进度
 - 📊 **考试模式** — 自定义组卷（题型数量配置），计时考试，成绩统计
-- 🤖 **AI 生成题目** — 接入 DeepSeek API，一键生成各类型题目（5 种题型）；可上传附件（Word / Excel / PDF / txt / md / csv），由 markitdown 转成 Markdown 后依据资料出题
+- 🤖 **AI 生成题目** — 接入 DeepSeek API，一键生成各类型题目（5 种题型）；一次可提交最多 5 份附件（Word / Excel / PDF / txt / md / csv），由 markitdown 转成 Markdown 后依据资料出题
 - 🎯 **AI 智能判题** — 主观题（简答/填空）AI 自动判分，支持多模型切换
 - 📈 **统计面板** — Chart.js 答题统计（Doughnut + 横向 Bar 图）
 - 📕 **错题本** — 答题错题自动收集，支持按类型筛选和回顾

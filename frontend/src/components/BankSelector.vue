@@ -1,4 +1,4 @@
-/** @file BankSelector.vue — 题库选择器，支持题库标签切换、拖拽/点击上传Excel、AI生成题库（液体流光按钮） */
+/** @file BankSelector.vue — 题库选择器，支持题库标签切换、上传 Excel 与 AI 生成题库 */
 <template>
   <div class="flex flex-wrap items-center gap-2">
     <!-- 错题库 -->
@@ -38,9 +38,10 @@
       v-if="isAiMode"
       @click="genDialogOpen = true"
       data-tour="gen-btn"
-      class="liquid-btn inline-flex items-center px-3 py-1 text-xs font-semibold select-none whitespace-nowrap"
+      class="ai-action inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold select-none whitespace-nowrap"
     >
-      <span class="liquid-btn-inner px-2"><Sparkles class="size-3.5 inline-block -mt-0.5" /> 生成题库</span>
+      <span class="ai-action-icon"><Sparkles class="size-3.5" /></span>
+      <span>生成题库</span>
       <span v-if="genStatus?.running" class="text-[9px] opacity-70 ml-1">{{ genStatus.progress || 0 }}</span>
     </button>
 
@@ -54,7 +55,7 @@
     </button>
 
     <!-- AI 生成弹窗 -->
-    <Dialog :open="genDialogOpen" @update:open="genDialogOpen = $event" class="sm:max-w-[460px]">
+    <Dialog :open="genDialogOpen" @update:open="genDialogOpen = $event" class="sm:max-w-[560px]">
       <DialogHeader>
         <DialogTitle>AI 生成题库</DialogTitle>
         <DialogDescription>输入主题，或上传附件让 AI 依据资料出题；生成结果写入新题库</DialogDescription>
@@ -66,21 +67,22 @@
         </div>
         <!-- 附件：AI 依据附件内容出题 -->
         <div class="space-y-1.5">
-          <label class="text-xs font-medium">附件（可选）</label>
-          <div
-            class="flex items-center gap-2 px-3 py-2 border border-dashed text-xs transition-colors cursor-pointer"
-            :class="materialParsing ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:border-primary/50'"
-            @click="materialInput?.click()"
-            @dragover.prevent
-            @drop.prevent="onMaterialDrop"
-          >
-            <Paperclip class="size-3.5 flex-shrink-0" />
-            <span v-if="materialParsing" class="flex items-center gap-1 flex-shrink-0"><Loader class="size-3 animate-spin" /> 正在解析附件…</span>
-            <span v-else-if="material" class="flex-1 min-w-0 truncate" :title="material.name">{{ material.name }}（{{ material.chars }} 字{{ material.truncated ? '，超出部分已截断' : '' }}）</span>
-            <span v-else class="flex-1 min-w-0 truncate">支持 Word/Excel/PDF/txt/md/csv，AI 将依据附件内容出题</span>
-            <span v-if="material && !materialParsing" class="flex-shrink-0 hover:text-destructive" @click.stop="material = null">×</span>
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-xs font-medium">参考附件 <span class="font-normal text-muted-foreground">（可选，最多 5 个）</span></label>
+            <span v-if="materialParsing" class="inline-flex items-center gap-1 text-[11px] text-primary"><Loader class="size-3 animate-spin" /> 正在解析 {{ materialQueueName }}…</span>
           </div>
-          <input ref="materialInput" type="file" accept=".docx,.xlsx,.pdf,.txt,.md,.csv" class="hidden" @change="onMaterialChange" />
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button type="button" class="attachment-add-card" :disabled="materialParsing || materials.length >= 5" @click="materialInput?.click()" @dragover.prevent @drop.prevent="onMaterialDrop">
+              <span class="attachment-add-icon"><Paperclip class="size-4" /></span>
+              <span class="text-left"><span class="block text-xs font-medium">添加资料</span><span class="block mt-0.5 text-[11px] text-muted-foreground">Word、Excel、PDF、文本</span></span>
+            </button>
+            <article v-for="file in materials" :key="file.id" class="attachment-card">
+              <span class="attachment-file-icon"><FileText class="size-4" /></span>
+              <span class="min-w-0 flex-1 text-left"><span class="block truncate text-xs font-medium" :title="file.name">{{ file.name }}</span><span class="block mt-0.5 text-[11px] text-muted-foreground">{{ file.chars }} 字{{ file.truncated ? ' · 已截断' : '' }}</span></span>
+              <button type="button" class="attachment-remove" :aria-label="`移除附件 ${file.name}`" @click="removeMaterial(file.id)">×</button>
+            </article>
+          </div>
+          <input ref="materialInput" type="file" multiple accept=".docx,.xlsx,.pdf,.txt,.md,.csv" class="hidden" @change="onMaterialChange" />
         </div>
         <div class="flex gap-3">
           <div class="flex-1 space-y-1.5">
@@ -129,12 +131,10 @@
       </div>
       <DialogFooter>
         <Button variant="outline" @click="genDialogOpen = false" :disabled="genStatus?.running">取消</Button>
-        <button v-if="!genStatus?.done" @click="startGenerate" :disabled="genStatus?.running || (!genTopic.trim() && !material)"
-          class="liquid-btn inline-flex items-center px-4 py-1.5 text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+        <button v-if="!genStatus?.done" @click="startGenerate" :disabled="genStatus?.running || materialParsing || (!genTopic.trim() && !materials.length)"
+          class="ai-action inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          <span class="liquid-btn-inner px-3">
-            {{ genStatus?.running ? '生成中…' : '开始生成' }}
-          </span>
+          <Sparkles class="size-3.5" /> {{ genStatus?.running ? '生成中…' : '开始生成' }}
         </button>
         <Button v-else @click="finishGenerate" class="gap-1.5">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -176,7 +176,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Upload, Pencil, BookOpen, Sparkles, CircleCheck, CircleX, Loader, Paperclip } from 'lucide-vue-next'
+import { Upload, Pencil, BookOpen, Sparkles, CircleCheck, CircleX, Loader, Paperclip, FileText } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import axios from 'axios'
 import Dialog from './ui/Dialog.vue'
@@ -209,39 +209,48 @@ const genStatus = ref(null)
 const genModel = ref(selectedModel.value || 'deepseek-v4-pro')
 const genModels = computed(() => availableModels.value.length ? availableModels.value : [{ id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }, { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }])
 const materialInput = ref(null)
-const material = ref(null)
+const materials = ref([])
 const materialParsing = ref(false)
+const materialQueueName = ref('')
 let genPollTimer = null
 
 /**
  * 上传附件并解析成 Markdown（后端调用 markitdown）
- * @param {File} file - Word/Excel/PDF/txt/md/csv 附件
+ * @param {File[]} files - Word/Excel/PDF/txt/md/csv 附件
  * @returns {Promise<void>}
  */
-async function uploadMaterial(file) {
+async function uploadMaterials(files) {
+  const pending = files.slice(0, Math.max(0, 5 - materials.value.length))
+  if (!pending.length) return
   materialParsing.value = true
-  try {
-    const form = new FormData()
-    form.append('file', file)
-    const res = await axios.post('http://localhost:13002/api/ai/material', form)
-    material.value = res.data
-    toast.success(`附件已解析：${res.data.chars} 字`)
-  } catch (e) {
-    material.value = null
-    toast.error(e.response?.data?.error || '附件解析失败')
-  } finally {
-    materialParsing.value = false
+  for (const file of pending) {
+    materialQueueName.value = file.name
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await axios.post('http://localhost:13002/api/ai/material', form)
+      materials.value.push(res.data)
+      toast.success(`已解析：${res.data.name}`)
+    } catch (e) {
+      toast.error(`${file.name}：${e.response?.data?.error || '附件解析失败'}`)
+    }
   }
+  materialQueueName.value = ''
+  materialParsing.value = false
 }
 
+async function removeMaterial(id) {
+  materials.value = materials.value.filter(file => file.id !== id)
+  try { await axios.delete(`http://localhost:13002/api/ai/material/${encodeURIComponent(id)}`) } catch { /* 缓存会自动过期 */ }
+}
 const onMaterialChange = (e) => {
-  const file = e.target?.files?.[0]
-  if (file) uploadMaterial(file)
+  const files = Array.from(e.target?.files || [])
+  if (files.length) uploadMaterials(files)
   e.target.value = ''
 }
 const onMaterialDrop = (e) => {
-  const file = e.dataTransfer?.files?.[0]
-  if (file) uploadMaterial(file)
+  const files = Array.from(e.dataTransfer?.files || [])
+  if (files.length) uploadMaterials(files)
 }
 
 /**
@@ -249,7 +258,7 @@ const onMaterialDrop = (e) => {
  * @returns {Promise<void>}
  */
 async function startGenerate() {
-  if (!genTopic.value.trim() && !material.value) return
+  if (!genTopic.value.trim() && !materials.value.length) return
   genStatus.value = { running: true, progress: 0, total: genTotal.value }
   try {
     const res = await axios.post('http://localhost:13002/api/ai/generate', {
@@ -257,7 +266,7 @@ async function startGenerate() {
       total: genTotal.value,
       bankName: genBankName.value || undefined,
       model: genModel.value,
-      materialId: material.value?.id,
+      materialIds: materials.value.map(file => file.id),
     })
     if (res.data.ok) {
       pollGenStatus()
@@ -292,7 +301,7 @@ function finishGenerate() {
   genTopic.value = ''
   genBankName.value = ''
   genStatus.value = null
-  material.value = null
+  materials.value = []
   if (genPollTimer) clearTimeout(genPollTimer)
   fetchAll().then(() => {
     if (name) {
@@ -430,52 +439,41 @@ defineExpose({ refreshBanks: fetchAll, clearSelection })
 </script>
 
 <style>
-/* 液体流光按钮 */
-.liquid-btn {
-  position: relative;
-  border: none;
-  background: transparent;
-  color: var(--color-primary);
+.ai-action {
+  color: var(--color-primary-foreground);
+  background: linear-gradient(135deg, #4a7dbf, #4d9c91);
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+.ai-action:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
+.ai-action-icon, .attachment-add-icon, .attachment-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.ai-action-icon { color: #dff5f0; }
+.attachment-add-card, .attachment-card {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+}
+.attachment-add-card {
   cursor: pointer;
-  z-index: 1;
-  transition: transform 0.2s;
+  color: var(--color-foreground);
+  border-style: dashed;
+  text-align: left;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
-.liquid-btn:hover {
-  transform: scale(1.04);
-}
-.liquid-btn::before {
-  content: '';
-  position: absolute;
-  inset: -1.5px;
-  border-radius: inherit;
-  padding: 1.5px;
-  background: conic-gradient(from var(--liquid-angle, 0deg), #4a7dbf, #5d9b6a, #6b9fd4, #b8954a, #4a7dbf);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation: liquid-rotate 3s linear infinite;
-  z-index: -1;
-  transition: animation-duration 0.3s, inset 0.2s;
-}
-.liquid-btn:hover::before {
-  animation-duration: 1s;
-  inset: -2px;
-  background: conic-gradient(from var(--liquid-angle, 0deg), #c2655a, #b8954a, #e879f9, #6b9fd4, #c2655a);
-}
-.liquid-btn-inner {
-  position: relative;
-  background: var(--color-background);
-  z-index: 1;
-}
-@keyframes liquid-rotate {
-  to { --liquid-angle: 360deg; }
-}
-@property --liquid-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
+.attachment-add-card:hover:not(:disabled) { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, var(--color-card)); }
+.attachment-add-card:disabled { cursor: not-allowed; opacity: 0.5; }
+.attachment-add-icon { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 10%, transparent); width: 32px; height: 32px; }
+.attachment-file-icon { color: #3c8b82; background: linear-gradient(135deg, rgba(74, 125, 191, 0.14), rgba(77, 156, 145, 0.18)); width: 32px; height: 32px; }
+.attachment-remove { color: var(--color-muted-foreground); font-size: 18px; line-height: 1; }
+.attachment-remove:hover { color: var(--color-destructive); }
 
 /* 局部碎屑 */
 @keyframes confetti-local {

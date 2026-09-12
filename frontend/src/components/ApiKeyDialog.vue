@@ -106,12 +106,10 @@ async function goFetchModels() {
   try {
     const { useAiMode } = await import('../composables/useAiMode')
     const { saveApiKey, fetchModelList, selectedModel } = useAiMode()
-    await saveApiKey(key.value.trim())
+    const verifiedModels = await saveApiKey(key.value.trim())
     step.value = 'model'
     selectedId.value = selectedModel.value || 'deepseek-v4-pro'
-    modelsLoading.value = true
-    const list = await fetchModelList()
-    models.value = list
+    models.value = verifiedModels?.length ? verifiedModels : await fetchModelList()
   } catch (e) {
     error.value = e.response?.data?.error || e.message || '验证失败'
   } finally {
